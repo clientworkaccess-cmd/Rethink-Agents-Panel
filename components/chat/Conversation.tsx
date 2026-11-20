@@ -8,7 +8,7 @@ import { api, isUnreachable, newRequestId, timeAgo, usePoll } from "@/lib/client
 import type { Agent, Artifact, ChatSession, Comment, CreateSessionResult, RunProgress } from "@/lib/types";
 import { ArtifactChip } from "../artifacts";
 import Critter from "../character/Critter";
-import { Dots, Loading, Markdown, Notice, Unreachable } from "../ui";
+import { Button, EmptyState, Icon, InlineNotice, Loading, Markdown, Mono, SectionLabel, Unreachable, cardClass } from "../ui";
 
 const FAST_MS = 2500;
 const SLOW_MS = 15_000;
@@ -235,7 +235,7 @@ export default function Conversation({
     setAttempt((n) => n + 1);
   };
   if (openError === "unreachable") return <Unreachable onRetry={retryOpen} />;
-  if (openError) return <Notice title="Could not open this chat" text="Please try again in a moment." onRetry={retryOpen} mood="error" />;
+  if (openError) return <EmptyState title="Could not open this chat" text="Please try again in a moment." onRetry={retryOpen} mood="error" />;
   if (fallingBack) return <Loading label="Switching to the main conversation…" />;
 
   const empty = loaded && comments.length === 0 && local.length === 0;
@@ -243,24 +243,20 @@ export default function Conversation({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[760px] flex-col gap-7 px-4 py-8">
+      <div ref={scroller} className="scroll-quiet min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex max-w-chat flex-col gap-6 px-4 py-8">
           {!loaded && <Loading label="Opening chat…" />}
           {empty && (
-            <div className="fade-in flex flex-col items-center gap-3 py-12 text-center">
+            <div className="fade-in flex flex-col items-center gap-5 py-12 text-center">
               <Critter agent={agent} size={72} mood="wave" />
-              <p className="eyebrow mt-2">{issueId ? "Say hello" : "New chat"}</p>
-              <p className="display text-[30px]">Hi, I&apos;m {agent.name}. What can I do for you?</p>
-              <p className="max-w-md text-caption text-body">
-                Replies arrive as whole messages. Documents and files I create open on the right.
-              </p>
-              <div className="mt-3 grid w-full max-w-xl gap-2 sm:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <SectionLabel>{issueId ? "Say hello" : "New chat"}</SectionLabel>
+                <p className="text-2xl font-normal text-foreground">Hi, I&apos;m {agent.name}. What can I do for you?</p>
+                <p className="mx-auto max-w-prose text-sm">Replies arrive as whole messages. Documents and files I create open on the right.</p>
+              </div>
+              <div className="grid w-full gap-2 sm:grid-cols-3">
                 {examples.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => send(q)}
-                    className="card-hover rounded-sm border border-line bg-canvas p-3 text-left text-[14px] leading-snug text-ink"
-                  >
+                  <button key={q} onClick={() => send(q)} className={cardClass("default", true, "p-3 text-sm text-foreground")}>
                     {q}
                   </button>
                 ))}
@@ -270,22 +266,16 @@ export default function Conversation({
 
           {comments.map((c) =>
             c.authorAgentId ? (
-              <div key={c.id} className="fade-in flex gap-3">
-                <Critter agent={agent} size={32} head className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.22px] text-muted">
-                    {agent.name} · {timeAgo(c.createdAt)}
-                  </p>
-                  <Markdown>{c.body}</Markdown>
-                  {byComment.get(c.id)?.length ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {byComment.get(c.id)!.map((a) => (
-                        <ArtifactChip key={a.id} artifact={a} active={a.id === openArtifactId} onOpen={onOpenArtifact} />
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+              <AgentTurn key={c.id} agent={agent} meta={timeAgo(c.createdAt)}>
+                <Markdown>{c.body}</Markdown>
+                {byComment.get(c.id)?.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {byComment.get(c.id)!.map((a) => (
+                      <ArtifactChip key={a.id} artifact={a} active={a.id === openArtifactId} onOpen={onOpenArtifact} />
+                    ))}
+                  </div>
+                ) : null}
+              </AgentTurn>
             ) : (
               <UserBubble key={c.id} body={c.body} meta={timeAgo(c.createdAt)} />
             ),
@@ -301,7 +291,7 @@ export default function Conversation({
           ))}
 
           {loose.length > 0 && (
-            <div className="flex flex-wrap gap-2 pl-11">
+            <div className="flex flex-wrap gap-2 pl-8">
               {loose.map((a) => (
                 <ArtifactChip key={a.id} artifact={a} active={a.id === openArtifactId} onOpen={onOpenArtifact} />
               ))}
@@ -309,26 +299,24 @@ export default function Conversation({
           )}
 
           {busy && !sending && (
-            <div className="fade-in flex gap-3" aria-live="polite">
-              <Critter agent={agent} size={32} head mood="busy" className="mt-0.5 shrink-0" />
-              <div className="pt-1">
-                <p className="flex items-center gap-2 text-[14px] text-body">
-                  {progress.running ? "Working" : "Thinking"} <Dots />
-                </p>
-                {progress.lines.map((line, i) => (
-                  <p key={i} className="mt-0.5 text-[13px] text-muted">
+            <AgentTurn agent={agent} meta="Working" busy live>
+              {progress.lines.length === 0 ? (
+                <p className="shimmer text-sm">Thinking</p>
+              ) : (
+                progress.lines.map((line, i) => (
+                  <p key={i} className={i === progress.lines.length - 1 ? "shimmer text-sm" : "text-sm"}>
                     {line}
                   </p>
-                ))}
-              </div>
-            </div>
+                ))
+              )}
+            </AgentTurn>
           )}
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-[760px] px-4 pb-5">
-        {lostConnection && <p className="mb-2 text-[13px] text-body">Paperclip is not reachable right now. Retrying…</p>}
-        <div className="flex items-end gap-2 rounded-sm border border-line bg-canvas p-2.5 transition-colors focus-within:border-accent">
+      <div className="mx-auto flex w-full max-w-chat flex-col gap-2 px-4 pb-4">
+        {lostConnection && <InlineNotice tone="warning">Paperclip is not reachable right now. Retrying…</InlineNotice>}
+        <div className="flex items-end gap-2 rounded-xl border border-control-border bg-background-alt p-2 transition-colors duration-(--motion-duration-fast) focus-within:border-foreground">
           <textarea
             ref={box}
             value={draft}
@@ -343,36 +331,63 @@ export default function Conversation({
             placeholder={`Message ${agent.name}…`}
             disabled={!loaded}
             aria-label={`Message ${agent.name}`}
-            className="max-h-[220px] min-h-12 flex-1 resize-none bg-transparent px-2 py-1.5 text-body text-ink outline-none placeholder:text-muted"
+            className="max-h-composer-max min-h-12 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:shadow-none focus-visible:outline-none"
           />
-          <button onClick={submit} disabled={!draft.trim() || !loaded} className="btn btn-primary h-10 uppercase" aria-label="Send">
+          <Button variant="primary" size="sm" onClick={submit} disabled={!draft.trim() || !loaded} aria-label="Send">
             Send
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M3 8h10M9 4l4 4-4 4" />
-            </svg>
-          </button>
+            <Icon name="send" className="size-icon-sm" />
+          </Button>
         </div>
-        <p className="mt-1.5 text-center font-mono text-[10px] uppercase tracking-[0.22px] text-muted">Enter to send · Shift+Enter for a new line</p>
+        <p className="text-center text-xs">Enter to send · Shift+Enter for a new line</p>
       </div>
     </div>
   );
 }
 
+/** An agent's turn: avatar and name above the message, on the page surface (left). */
+function AgentTurn({
+  agent,
+  meta,
+  busy = false,
+  live = false,
+  children,
+}: {
+  agent: Agent;
+  meta: string;
+  busy?: boolean;
+  live?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fade-in flex flex-col gap-2" aria-live={live ? "polite" : undefined}>
+      <div className="flex items-center gap-2">
+        <Critter agent={agent} size={24} head mood={busy ? "busy" : "idle"} />
+        <span className="text-sm font-semibold text-foreground">{agent.name}</span>
+        {busy ? <span className="text-xs">{meta}</span> : <Mono>{meta}</Mono>}
+      </div>
+      <div className="flex flex-col gap-3 pl-8">{children}</div>
+    </div>
+  );
+}
+
+/** The viewer's own message: right-aligned blue bubble with white text. */
 function UserBubble({ body, meta, failed }: { body: string; meta?: string; failed?: () => void }) {
   return (
-    <div className="fade-in flex flex-col items-end">
-      <div className={`max-w-[80%] whitespace-pre-wrap rounded-sm bg-accent-soft px-4 py-2.5 text-[15px] text-ink ${failed ? "opacity-70" : ""}`}>
-        {body}
-      </div>
+    <div className="fade-in flex flex-col items-end gap-1">
+      <div className="max-w-bubble whitespace-pre-wrap rounded-xl bg-bubble-human px-4 py-2 text-sm text-bubble-human-foreground">{body}</div>
       {failed ? (
-        <p className="mt-1 text-[13px] text-st-error">
-          Not sent.{" "}
-          <button onClick={failed} className="underline underline-offset-2">
-            Retry
-          </button>
-        </p>
+        <InlineNotice
+          tone="error"
+          action={
+            <Button size="sm" onClick={failed}>
+              Retry
+            </Button>
+          }
+        >
+          This message was not sent.
+        </InlineNotice>
       ) : (
-        meta && <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.22px] text-muted">{meta}</p>
+        meta && <Mono>{meta}</Mono>
       )}
     </div>
   );

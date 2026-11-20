@@ -3,6 +3,7 @@
 // so animation is procedural on the parts: the rig eases each part toward the Pose the brain asks for.
 // All art is original, drawn here with Pixi Graphics.
 import { Container, Graphics, Text } from "pixi.js";
+import { sceneChrome, type SceneChrome } from "@/lib/tokens";
 import { mix, type Look } from "./model";
 
 export type Mouth = "smile" | "grin" | "o" | "flat" | "frown" | "sleep";
@@ -93,6 +94,8 @@ export class CharacterRig {
   private bubbleKind: BubbleKind = null;
   private bubbleMsg = "";
   private t = Math.random() * 10;
+  /** Bubble and label colours/fonts from the design tokens (re-read by refreshChrome on theme change). */
+  private chrome: SceneChrome = sceneChrome();
 
   constructor(
     private look: Look,
@@ -205,7 +208,7 @@ export class CharacterRig {
     // bubble above the head
     this.bubbleText = new Text({
       text: "",
-      style: { fontFamily: "DM Sans, system-ui, sans-serif", fontSize: 11, fill: INK, fontWeight: "500" },
+      style: { fontFamily: this.chrome.fontSans, fontSize: 11, fill: this.chrome.bubbleFg, fontWeight: "400" },
       resolution: 2,
     });
     this.bubbleText.anchor.set(0.5);
@@ -217,7 +220,7 @@ export class CharacterRig {
     if (opts.label) {
       this.label = new Text({
         text: opts.label,
-        style: { fontFamily: "Martian Mono, ui-monospace, monospace", fontSize: 9, fill: opts.labelColor ?? 0x5d5d5d, letterSpacing: 0.4 },
+        style: { fontFamily: this.chrome.fontMono, fontSize: 9, fill: opts.labelColor ?? this.chrome.label, letterSpacing: 0.4 },
         resolution: 2,
       });
       this.label.anchor.set(0.5, 0);
@@ -228,6 +231,21 @@ export class CharacterRig {
 
   setLabelColor(color: number) {
     if (this.label) this.label.style.fill = color;
+  }
+
+  /** Re-reads the token colours for the chrome around the art (label, bubble) and redraws the bubble. */
+  refreshChrome() {
+    this.chrome = sceneChrome();
+    if (this.label) {
+      this.label.style.fill = this.chrome.label;
+      this.label.style.fontFamily = this.chrome.fontMono;
+    }
+    this.bubbleText.style.fontFamily = this.chrome.fontSans;
+    const kind = this.bubbleKind;
+    const msg = this.bubbleMsg;
+    this.bubbleKind = null;
+    this.bubbleMsg = "";
+    this.setBubble(kind, msg);
   }
 
   setRing(color: number | null) {
@@ -317,6 +335,7 @@ export class CharacterRig {
   /** Shows a bubble. `text` is used by the "text" kind. Cheap to call every frame. */
   setBubble(kind: BubbleKind, text = "") {
     if (kind === this.bubbleKind && text === this.bubbleMsg) return;
+    const c = this.chrome;
     this.bubbleKind = kind;
     this.bubbleMsg = text;
     const bg = this.bubbleBg;
@@ -331,50 +350,50 @@ export class CharacterRig {
       bg.poly([-4, h / 2 - 0.5, 4, h / 2 - 0.5, -6, h / 2 + 6]).fill(fill);
     };
     const t = this.bubbleText;
-    t.style.fill = INK;
+    t.style.fill = c.bubbleFg;
     t.style.fontSize = 11;
     t.y = 0;
     switch (kind) {
       case "text":
         t.text = text;
-        card(Math.min(190, t.width + 16), 22, 0xffffff, 0xe0e0e0);
+        card(Math.min(190, t.width + 16), 22, c.bubbleBg, c.bubbleBorder);
         break;
       case "dots":
         t.text = "";
-        card(30, 18, 0xffffff, 0xe0e0e0);
+        card(30, 18, c.bubbleBg, c.bubbleBorder);
         break;
       case "code":
         t.text = "</>";
-        t.style.fill = 0x7451f2;
-        card(32, 20, 0xffffff, 0xe0e0e0);
+        t.style.fill = c.code;
+        card(32, 20, c.bubbleBg, c.bubbleBorder);
         break;
       case "think":
         t.text = "?";
         t.style.fontSize = 14;
-        bg.circle(0, 0, 11).fill(0xffffff).stroke({ width: 1, color: 0xe0e0e0 });
-        bg.circle(-8, 13, 3).fill(0xffffff).stroke({ width: 1, color: 0xe0e0e0 });
-        bg.circle(-12, 19, 1.8).fill(0xffffff);
+        bg.circle(0, 0, 11).fill(c.bubbleBg).stroke({ width: 1, color: c.bubbleBorder });
+        bg.circle(-8, 13, 3).fill(c.bubbleBg).stroke({ width: 1, color: c.bubbleBorder });
+        bg.circle(-12, 19, 1.8).fill(c.bubbleBg);
         break;
       case "gear":
         t.text = "";
-        bg.circle(0, 0, 11).fill(0xffffff).stroke({ width: 1, color: 0xe0e0e0 });
+        bg.circle(0, 0, 11).fill(c.bubbleBg).stroke({ width: 1, color: c.bubbleBorder });
         break;
       case "wait":
         t.text = "!";
-        t.style.fill = 0xffffff;
+        t.style.fill = c.onStatus;
         t.style.fontSize = 13;
-        card(20, 20, 0x0072c6, 0x0072c6);
+        card(20, 20, c.waiting, c.waiting);
         break;
       case "error":
         t.text = "!";
-        t.style.fill = 0xffffff;
+        t.style.fill = c.onStatus;
         t.style.fontSize = 13;
-        card(20, 20, 0xd2482a, 0xd2482a);
+        card(20, 20, c.error, c.error);
         break;
       case "pause":
         t.text = "II";
-        t.style.fill = 0x5d5d5d;
-        card(22, 20, 0xffffff, 0xe0e0e0);
+        t.style.fill = c.paused;
+        card(22, 20, c.bubbleBg, c.bubbleBorder);
         break;
       case "zzz":
       case "sparkle":
@@ -393,14 +412,14 @@ export class CharacterRig {
         break;
       case "gear": {
         fx.clear();
-        fx.star(0, 0, 8, 7, 4.5, t * 2).fill(0x7451f2).circle(0, 0, 2.2).fill(0xffffff);
+        fx.star(0, 0, 8, 7, 4.5, t * 2).fill(this.chrome.code).circle(0, 0, 2.2).fill(this.chrome.bubbleBg);
         break;
       }
       case "dots": {
         fx.clear();
         for (let i = 0; i < 3; i++) {
           const a = 0.35 + 0.65 * Math.max(0, Math.sin(t * 6 - i * 0.9));
-          fx.circle(-7 + i * 7, 0, 2).fill({ color: 0x5d5d5d, alpha: a });
+          fx.circle(-7 + i * 7, 0, 2).fill({ color: this.chrome.label, alpha: a });
         }
         // dots draw on top of the card
         this.bubble.setChildIndex(fx, this.bubble.children.length - 1);
@@ -416,7 +435,7 @@ export class CharacterRig {
           const y = 4 - p * 26;
           fx.moveTo(x - s, y - s).lineTo(x + s, y - s).lineTo(x - s, y + s).lineTo(x + s, y + s).stroke({
             width: 1.6,
-            color: 0x7451f2,
+            color: this.chrome.label,
             alpha: 1 - p,
             cap: "round",
             join: "round",

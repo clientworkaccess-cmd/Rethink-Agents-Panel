@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Mark, ThemeToggle } from "@/components/AppShell";
 import Critter from "@/components/character/Critter";
-import { Mark, ThemeToggle } from "@/components/TopBar";
+import { Button, InlineNotice, cardClass } from "@/components/ui";
 
 const CREW = [
   { id: "crew-a", role: "cro", name: "a" },
@@ -10,6 +11,9 @@ const CREW = [
   { id: "crew-c7", role: "analyst", name: "c" },
   { id: "crew-d", role: "general", name: "d" },
 ];
+
+const INPUT =
+  "h-control w-full rounded-lg border border-control-border bg-background-alt px-3 text-sm text-foreground placeholder:text-muted-foreground";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -28,61 +32,62 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
-        setError(res.status === 401 ? "Wrong email or password." : "Could not log in. Please try again.");
+        setError(res.status === 401 ? "Wrong email or password. Check both and try again." : "Could not log in. Please try again.");
         return;
       }
       const next = new URLSearchParams(window.location.search).get("next");
       // only same-site paths
       window.location.href = next && next.startsWith("/") && !next.startsWith("//") ? next : "/office";
     } catch {
-      setError("The panel server is not reachable.");
+      setError("The panel server is not reachable. Try again in a moment.");
     } finally {
       setBusy(false);
     }
   }
 
-  const input =
-    "w-full rounded-sm border border-line bg-canvas px-3 py-2.5 text-body text-ink placeholder:text-muted outline-none transition-colors focus:border-accent";
-
   return (
-    <main className="dotgrid relative flex min-h-screen items-center justify-center px-4">
+    <main className="relative flex min-h-screen items-center justify-center bg-muted px-4">
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <div className="page-enter w-full max-w-[380px]">
-        <div className="mb-[-6px] flex items-end justify-center gap-1" aria-hidden>
+      <div className="page-enter w-full max-w-login">
+        <div className="-mb-1.5 flex items-end justify-center gap-1" aria-hidden>
           {CREW.map((c, i) => (
             <Critter key={c.id} agent={c} size={44} mood={i === 1 ? "wave" : "idle"} />
           ))}
         </div>
-        <form onSubmit={submit} className="rounded-sm border border-line bg-canvas p-8">
-          <div className="mb-2 flex items-center gap-2">
+        <form onSubmit={submit} className={cardClass("default", false, "flex flex-col gap-5 p-6")}>
+          <div className="flex items-center gap-3">
             <Mark />
-            <p className="eyebrow">Your agent team</p>
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">Agents Panel</h1>
+              <p className="text-xs">Log in to see your agent team.</p>
+            </div>
           </div>
-          <h1 className="display mb-6 text-[32px]">Agents Panel</h1>
-          <label className="mb-1 block text-caption text-body" htmlFor="email">
-            Email
-          </label>
-          <input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className={`${input} mb-4`} />
-          <label className="mb-1 block text-caption text-body" htmlFor="password">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={input}
-          />
-          <p role="alert" className="mt-3 min-h-5 text-caption text-st-error">
-            {error}
-          </p>
-          <button type="submit" disabled={busy} className="btn btn-primary mt-2 w-full py-2.5 uppercase">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm text-foreground" htmlFor="email">
+              Email
+            </label>
+            <input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm text-foreground" htmlFor="password">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={INPUT}
+            />
+          </div>
+          {error && <InlineNotice tone="error">{error}</InlineNotice>}
+          <Button type="submit" variant="primary" size="control" disabled={busy} className="w-full">
             {busy ? "Logging in…" : "Log in"}
-          </button>
+          </Button>
         </form>
       </div>
     </main>
