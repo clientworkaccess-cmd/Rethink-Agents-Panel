@@ -4,16 +4,44 @@
 // PAPERCLIP_MOCK_SESSIONS_FAIL tests the chat-session fallback:
 //   1 | create  -> creating a session issue fails (the panel falls back to the single /chats chat)
 //   noreply     -> session issues are created but the agent never answers (the panel times out and falls back)
+//
+// PAPERCLIP_MOCK_AGENTS=N sets the team size (default 4) to test how the Office scales: fewer than 4 keeps the
+// first N agents; more adds extra mock agents (CFO, CTO, COO, ...) with their own repeating run schedules.
 
 type Obj = Record<string, unknown>;
 
 const CID = "mock-company";
-const AGENTS = [
+const BASE_AGENTS = [
   { id: "agt-cro", name: "CRO", role: "cro", adapterType: "claude_local" },
   { id: "agt-analyst", name: "Pricing Analyst", role: "analyst", adapterType: "claude_local" },
   { id: "agt-ops", name: "Ops Assistant", role: "general", adapterType: "claude_local" },
   { id: "agt-cmo", name: "Marketing Lead", role: "cmo", adapterType: "claude_local" },
 ];
+const EXTRA_AGENTS: [string, string][] = [
+  ["CFO", "cfo"],
+  ["CTO", "cto"],
+  ["COO", "coo"],
+  ["Support Agent", "support"],
+  ["Brand Designer", "designer"],
+  ["Data Engineer", "engineer"],
+  ["Leasing Agent", "sales"],
+  ["Market Researcher", "analyst"],
+  ["Facilities Assistant", "general"],
+  ["Collections Agent", "general"],
+  ["CEO", "ceo"],
+  ["Content Writer", "cmo"],
+];
+function mockTeam() {
+  const n = Math.max(1, Math.min(40, Math.floor(Number(process.env.PAPERCLIP_MOCK_AGENTS) || BASE_AGENTS.length)));
+  const team = BASE_AGENTS.slice(0, n);
+  for (let i = 0; team.length < n; i++) {
+    const [name, role] = EXTRA_AGENTS[i % EXTRA_AGENTS.length];
+    const round = Math.floor(i / EXTRA_AGENTS.length);
+    team.push({ id: `agt-x${i + 1}`, name: round ? `${name} ${round + 1}` : name, role, adapterType: "claude_local" });
+  }
+  return team;
+}
+const AGENTS = mockTeam();
 const MARKER = "panel-chat-session: v1";
 const CYCLE_S = 90;
 const REPLY_DELAY_MS = 6000;
@@ -223,6 +251,13 @@ const WINDOWS: Record<string, { run?: [number, number]; quiet?: [number, number]
   "agt-ops": { run: [52, 74], status: [[0, 16, "pending_approval"]], task: "iss-4" },
   "agt-cmo": { run: [16, 46], status: [[62, 72, "paused"]], task: "iss-7" },
 };
+// extra agents (PAPERCLIP_MOCK_AGENTS > 4): staggered 24-34 s runs, so a few are always on the move
+AGENTS.slice(BASE_AGENTS.length).forEach((a, i) => {
+  const start = (i * 23 + 5) % CYCLE_S;
+  const len = 24 + ((i * 7) % 11);
+  const end = Math.min(CYCLE_S, start + len);
+  WINDOWS[a.id] = { run: [start, end], task: ["iss-2", "iss-4", "iss-7", "iss-1"][i % 4] };
+});
 
 function schedule(s: Store) {
   const now = Date.now();

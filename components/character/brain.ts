@@ -9,11 +9,11 @@ import type { Activity } from "@/lib/types";
 import { NEUTRAL, type BubbleKind, type Pose } from "./rig";
 
 export type Pt = { x: number; y: number };
-export type WorkAction = "type" | "study" | "write" | "pin" | "announce" | "inspect";
+export type WorkAction = "type" | "study" | "write" | "pin" | "announce" | "inspect" | "present" | "tinker" | "meet";
 export type Step = { spot: string; action: WorkAction };
 
 export type State = "sit" | "walk" | "work" | "think" | "wait" | "error" | "paused" | "done" | "doze" | "read";
-type IdleAct = "look" | "sip" | "stretch" | "yawn" | "swing" | "glance" | "hum";
+type IdleAct = "look" | "sip" | "stretch" | "yawn" | "swing" | "glance" | "hum" | "show";
 
 /** Movement support. Scenes without walking (lobby, dashboard strip) pass none. */
 export interface Navigator {
@@ -36,7 +36,7 @@ const IDLE_LONG_MS = 120_000;
 const DWELL_MS: [number, number] = [7000, 11000];
 const DONE_MS = 1900;
 const WAVE_MS = 1300;
-const IDLE_ACTS: IdleAct[] = ["look", "sip", "stretch", "yawn", "swing", "glance", "hum"];
+const IDLE_ACTS: IdleAct[] = ["look", "sip", "stretch", "yawn", "swing", "glance", "hum", "show"];
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const ease = (x: number) => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2);
@@ -220,7 +220,11 @@ export class CharacterBrain {
         // the task title, then a little typing / code bubble, alternating
         const phase = (this.t % 9) / 9;
         if (phase < 0.6 && inp.task) b("text", inp.task);
-        else b(inp.steps[this.stepIndex]?.action === "type" ? (Math.floor(this.t / 9) % 2 ? "code" : "dots") : "dots");
+        else {
+          const act = inp.steps[this.stepIndex % Math.max(1, inp.steps.length)]?.action;
+          const alt = Math.floor(this.t / 9) % 2 === 1;
+          b(act === "type" ? (alt ? "code" : "dots") : act === "tinker" ? (alt ? "gear" : "code") : "dots");
+        }
         break;
       }
       case "think":
@@ -247,7 +251,8 @@ export class CharacterBrain {
   }
 
   private nextIdleAct(seated: boolean) {
-    const options = IDLE_ACTS.filter((a) => a !== this.idleAct && (seated || a !== "glance"));
+    // "glance" (at the monitor) needs a desk; "show" (the role emblem) needs to be standing
+    const options = IDLE_ACTS.filter((a) => a !== this.idleAct && (seated ? a !== "show" : a !== "glance"));
     this.idleAct = options[Math.floor(Math.random() * options.length)];
     this.idleUntil = this.t + rnd(3.2, 5.8);
   }
@@ -293,9 +298,14 @@ export class CharacterBrain {
       p.lookY = Math.max(-1, Math.min(1, (dy / d) * 1.3));
       p.away = false;
       if (p.mouth === "flat" || p.mouth === "sleep") p.mouth = "smile";
-      // perk up: eyes open, slight lift
+      // perk up: eyes open, slight lift, and show the role emblem on an open palm
       p.eyeOpen = Math.max(p.eyeOpen, 0.95);
       p.squash = Math.max(p.squash, 1.03);
+      if (this.state !== "walk") {
+        p.emblem = true;
+        p.armL = 1.15;
+        if (p.hold === "mug" || p.hold === "book") p.hold = "none";
+      }
     }
     if (reduced) return p;
     if (this.waveLeft > 0) {
@@ -327,6 +337,10 @@ export class CharacterBrain {
 
   stepAction(inp: BrainInput): WorkAction {
     return inp.steps[this.stepIndex % Math.max(1, inp.steps.length)]?.action ?? "type";
+  }
+
+  get hasRoom() {
+    return this.nav !== null;
   }
 
   get isAway() {
@@ -392,6 +406,14 @@ const POSES: Record<State, (p: Pose, c: Ctx) => void> = {
         p.armR = -1.1 - Math.sin(t * 9) * 0.06;
         p.mouth = "flat";
         break;
+      case "show": // the role emblem floats over an open palm
+        p.emblem = true;
+        p.armL = 1.15 * k + Math.sin(t * 2) * 0.04;
+        p.lookX = -0.7;
+        p.lookY = -0.5;
+        p.headTilt = -0.06;
+        p.mouth = "grin";
+        break;
       case "hum":
         p.headTilt = Math.sin(t * 2.6) * 0.14;
         p.lean = Math.sin(t * 2.6) * 0.04;
@@ -430,7 +452,11 @@ const POSES: Record<State, (p: Pose, c: Ctx) => void> = {
     p.hold = "prop";
     p.lookX = 0.5;
   },
-  work: (p, c) => workPose(p, c),
+  work: (p, c) => {
+    workPose(p, c);
+    // scenes without a room (lounge, team strip) have no board to face: stay turned toward the viewer
+    if (!c.brain.hasRoom) p.away = false;
+  },
   think: (p, { t }) => {
     p.armR = -2.55;
     p.armL = 0.1;
@@ -499,10 +525,12 @@ function workPose(p: Pose, { t, brain, inp, seated }: Ctx) {
         p.lookX = 0.4;
         p.mouth = "o";
       } else {
-        p.hold = "prop";
-        p.armR = -1.2;
-        p.lookY = 0.7;
-        p.mouth = "flat";
+        // then holds up the role emblem (a revenue coin for the CRO) and considers it
+        p.emblem = true;
+        p.armL = 1.2;
+        p.lookX = -0.8;
+        p.lookY = -0.6;
+        p.mouth = "smile";
       }
       p.headTilt = -0.06;
       break;
@@ -526,6 +554,39 @@ function workPose(p: Pose, { t, brain, inp, seated }: Ctx) {
       p.bodyY = -Math.abs(Math.sin(t * 6)) * 3;
       p.mouth = "grin";
       break;
+    case "present": // at the meeting screen: points at it, then turns to the room with the emblem
+      if (Math.sin(t * 0.8) > 0) {
+        p.armR = 2.2 + Math.sin(t * 3) * 0.12;
+        p.lookX = 0.8;
+        p.lookY = -0.6;
+        p.mouth = Math.sin(t * 9) > 0 ? "o" : "smile";
+      } else {
+        p.emblem = true;
+        p.armL = 1.2;
+        p.armR = 0.6 + Math.sin(t * 4) * 0.2;
+        p.lookX = 0;
+        p.mouth = Math.sin(t * 8) > 0.2 ? "grin" : "smile";
+      }
+      p.bodyY = -Math.abs(Math.sin(t * 2.4)) * 1.2;
+      break;
+    case "meet": // talking things through at the meeting table
+      p.armL = 0.6 + Math.sin(t * 3.2) * 0.35;
+      p.armR = 0.4 + Math.cos(t * 2.6) * 0.3;
+      p.lookX = Math.sin(t * 0.6) > 0 ? 0.8 : -0.8;
+      p.headTilt = Math.sin(t * 1.4) * 0.06;
+      p.mouth = Math.sin(t * 7) > 0.3 ? "o" : "smile";
+      break;
+    case "tinker": { // at the server rack, back to us: hands on the panel, nodding along
+      const fast = Math.sin(t * 16);
+      p.away = true;
+      p.armL = 1.9 + fast * 0.12;
+      p.armR = 1.7 - fast * 0.12;
+      p.lookX = 0.2;
+      p.lookY = 0.1;
+      p.headTilt = Math.sin(t * 2) * 0.05;
+      p.mouth = "flat";
+      break;
+    }
     case "inspect": // magnifier sweep
       p.hold = "prop";
       p.armR = -1.4 + Math.sin(t * 2) * 0.35;

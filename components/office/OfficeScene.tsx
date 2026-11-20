@@ -8,11 +8,12 @@ import { lookFor } from "@/components/character/model";
 import { CharacterRig } from "@/components/character/rig";
 import { createStage, type Stage } from "@/components/character/stage";
 import { activityOf, bubbleText, isThinking, runFor } from "@/lib/agents";
+import { activityHex, sceneChrome } from "@/lib/tokens";
 import { currentTheme, onThemeChange, prefersReducedMotion } from "@/lib/theme";
 import type { Agent, LiveRun } from "@/lib/types";
 import { stepsFor } from "./roles";
-import { buildRoom, type Room } from "./room";
-import { buildLayout, Grid, navigatorFor, W, type Layout } from "./world";
+import { buildRoom, type DeskOwner, type Room } from "./room";
+import { buildLayout, Grid, navigatorFor, type Layout } from "./world";
 
 export type OfficeApi = {
   resetView: () => void;
@@ -30,7 +31,7 @@ type Props = {
   apiRef?: Ref<OfficeApi>;
 };
 
-type Char = { agent: Agent; rig: CharacterRig; brain: CharacterBrain; desk: number; lastGreet: number; prevWorking: boolean };
+type Char = { agent: Agent; rig: CharacterRig; brain: CharacterBrain; desk: number; lastGreet: number; prevWorking: boolean; status: string };
 
 export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRef }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -93,17 +94,18 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
 
       const rebuildRoom = () => {
         room?.destroy();
-        const chairColors = Array.from({ length: layout.slots }, (_, i) => {
+        const owners: DeskOwner[] = Array.from({ length: layout.slots }, (_, i) => {
           const owner = [...desks.entries()].find(([, d]) => d === i)?.[0];
           const a = owner ? data.current.agents.find((x) => x.id === owner) : null;
-          return a ? lookFor(a).color : dark ? 0x4a4360 : 0xd8d2e8;
+          return a ? { id: a.id, name: a.name, color: lookFor(a).color } : null;
         });
-        room = buildRoom(layout, chairColors, dark);
+        room = buildRoom(layout, owners, dark, { mono: sceneChrome().fontMono });
         world.removeChildren();
         world.addChild(room.back, sorted);
         for (const p of room.props) sorted.addChild(p);
         for (const c of chars.values()) {
           c.rig.refreshChrome();
+          c.status = "";
           sorted.addChild(c.rig.root);
         }
       };
@@ -114,11 +116,11 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
         const f = fitScale();
         return Math.min(f * 2.6, Math.max(f * 0.75, z));
       };
-      const fitScale = () => Math.min(app.screen.width / (W + 40), app.screen.height / (layout.height + 40));
+      const fitScale = () => Math.min(app.screen.width / (layout.width + 40), app.screen.height / (layout.height + 40));
       const fit = () => {
         const z = fitScale();
         world.scale.set(z);
-        world.position.set((app.screen.width - W * z) / 2, (app.screen.height - layout.height * z) / 2);
+        world.position.set((app.screen.width - layout.width * z) / 2, (app.screen.height - layout.height * z) / 2);
         userMoved = false;
       };
       ctl.current.fit = fit;
@@ -231,9 +233,9 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
             const look = lookFor(a);
             const rig = new CharacterRig(look, { label: a.name.toUpperCase() });
             const nav = navigatorFor(grid, layout, desk);
-            // agents that appear later walk in from the left side of the room
-            const brain = new CharacterBrain(nav, desk, settled ? { x: 40, y: layout.tableY - 70 } : undefined);
-            c = { agent: a, rig, brain, desk, lastGreet: 0, prevWorking: false };
+            // agents that appear later walk in from the front-left corner of the room
+            const brain = new CharacterBrain(nav, desk, settled ? { ...layout.door } : undefined);
+            c = { agent: a, rig, brain, desk, lastGreet: 0, prevWorking: false, status: "" };
             const root = rig.root;
             root.eventMode = "static";
             root.cursor = "pointer";
@@ -307,6 +309,11 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
           const activity = activityOf(c.agent, runs);
           const working = activity === "working";
           if (c.prevWorking && !working && activity !== "error") cbs.current.onEvent?.("done");
+          // the status dot on the cubicle tag follows the agent's activity
+          if (c.status !== activity) {
+            c.status = activity;
+            room?.setStatus(c.desk, activityHex(activity));
+          }
           c.prevWorking = working;
           const pose = c.brain.update(dt, {
             activity,
@@ -319,6 +326,9 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
           c.rig.apply(pose, dt, reduced);
           c.rig.setBubble(c.brain.bubble.kind, c.brain.bubble.text);
           const r = c.rig.root;
+          // the cubicle tag names a seated agent; the name rides along when it leaves its desk
+          const home = layout.seats[c.desk];
+          c.rig.setLabelVisible(!home || Math.hypot(c.brain.pos.x - home.x, c.brain.pos.y - home.y) > 4 || c.brain.hovered);
           r.position.set(c.brain.pos.x, c.brain.pos.y);
           r.zIndex = c.brain.pos.y + 0.5;
           const target = c.brain.hovered ? 1.08 : 1;
