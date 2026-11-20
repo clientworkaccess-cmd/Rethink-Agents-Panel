@@ -42,7 +42,7 @@ HTML attachments are served as downloads; preview them in a sandboxed `<iframe s
 Full research: `docs/paperclip-api-research.md` and the Paperclip OpenAPI at `GET /api/openapi.json`.
 
 ## Design
-Follow `DESIGN.md` everywhere: warm parchment canvas, ink text, one teal accent, compact, low elevation. The office art should match that palette and calm tone.
+Follow `DESIGN.md` everywhere (updated 2026-11-21): white paper canvas, one vivid violet accent, Lustria + DM Sans + Martian Mono, square 4px corners, hairline borders. Characters are chubby, candy-coloured claymation creatures; the office art and agents follow that style. A dark theme is derived from it (brief 02).
 
 ## Rules
 1. **Read-only toward the business.** The panel only displays data and sends chat messages. It never changes agents, budgets or settings in Paperclip.
