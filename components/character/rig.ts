@@ -219,6 +219,7 @@ export class CharacterRig {
     // the role emblem, floating above the left hand (drawn upright, never mirrored)
     for (let r = 15; r > 4; r -= 3.5) this.emblemGlow.circle(0, 0, r).fill({ color: 0xffd27a, alpha: 0.07 });
     this.emblemArt.addChild(gfx(art.emblem));
+    this.emblemGlow.alpha = 0.7;
     this.emblem.addChild(this.emblemGlow, this.emblemArt);
     this.emblem.visible = false;
     this.body.addChild(this.emblem);
@@ -348,7 +349,6 @@ export class CharacterRig {
       this.emblem.scale.set(unflip * (0.7 + 0.3 * this.emblemK), 0.7 + 0.3 * this.emblemK);
       this.emblem.rotation = -c.lean;
       this.emblemArt.rotation = reduced ? 0 : Math.sin(this.t * 1.7) * 0.08;
-      this.emblemGlow.alpha = 0.7 + Math.sin(this.t * 3) * 0.3;
     }
 
     // the shadow shrinks while the character is up in the air

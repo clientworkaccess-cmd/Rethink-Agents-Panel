@@ -1,13 +1,18 @@
 "use client";
-// The Office scene: room + one animated character per agent, with a camera (drag to pan, wheel or pinch to
-// zoom, reset). Lazy-loaded by Office.tsx (PixiJS lives in its own chunk). Pauses while the tab is hidden.
+// The Office scene: room + one animated character per agent, with a camera. Lazy-loaded by Office.tsx (PixiJS
+// lives in its own chunk). Pauses while the tab is hidden.
+//
+// Camera: the room opens fitted to the screen, but never below OPEN_FLOOR (0.85) so names and faces stay
+// legible. When that floor applies (big teams, small screens) it opens centred horizontally and top-aligned,
+// the wheel pans (ctrl+wheel and pinch zoom), and panning is clamped so the room edge never leaves the
+// viewport edge. Zooming out still reaches the true whole-room fit. "Reset view" returns to the opening view.
 import { Container, Rectangle } from "pixi.js";
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { CharacterBrain } from "@/components/character/brain";
 import { lookFor } from "@/components/character/model";
 import { CharacterRig } from "@/components/character/rig";
 import { createStage, type Stage } from "@/components/character/stage";
-import { activityOf, bubbleText, isThinking, runFor } from "@/lib/agents";
+import { activityOf, bubbleText, isThinking, roleLabel, runFor } from "@/lib/agents";
 import { activityHex, sceneChrome } from "@/lib/tokens";
 import { currentTheme, onThemeChange, prefersReducedMotion } from "@/lib/theme";
 import type { Agent, LiveRun } from "@/lib/types";
@@ -21,24 +26,46 @@ export type OfficeApi = {
   celebrate: (agentId: string) => void;
   /** Screen position (CSS px, relative to the canvas) just above the agent's head. */
   headPos: (agentId: string) => { x: number; y: number } | null;
+  /** Pans the camera so the agent's desk is in view. */
+  panTo: (agentId: string) => void;
 };
+
+const OPEN_FLOOR = 0.85;
+const MARGIN = 20;
+
+/** Tag text per desk: the name (or role, or "AGENT"); duplicates get " 2", " 3" in desk order. */
+export function deskLabels(owners: (Agent | null)[]): (string | null)[] {
+  const seen = new Map<string, number>();
+  return owners.map((a) => {
+    if (!a) return null;
+    const base = a.name.trim() || roleLabel(a) || "AGENT";
+    const key = base.toUpperCase();
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    return n > 1 ? `${base} ${n}` : base;
+  });
+}
 
 type Props = {
   agents: Agent[];
   liveRuns: LiveRun[];
   onSelect: (agentId: string | null) => void;
   onEvent?: (kind: "click" | "done" | "type") => void;
+  /** The agent whose card is open (its hover emblem stays hidden). */
+  selected?: string | null;
   apiRef?: Ref<OfficeApi>;
 };
 
 type Char = { agent: Agent; rig: CharacterRig; brain: CharacterBrain; desk: number; lastGreet: number; prevWorking: boolean; status: string };
 
-export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRef }: Props) {
+export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, selected = null, apiRef }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const data = useRef({ agents, liveRuns });
+  const picked = useRef(selected);
   const cbs = useRef({ onSelect, onEvent });
-  const ctl = useRef<{ fit: () => void; chars: Map<string, Char>; world: Container | null }>({
+  const ctl = useRef<{ fit: () => void; panTo: (id: string) => void; chars: Map<string, Char>; world: Container | null }>({
     fit: () => {},
+    panTo: () => {},
     chars: new Map(),
     world: null,
   });
@@ -49,6 +76,9 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
   useEffect(() => {
     cbs.current = { onSelect, onEvent };
   }, [onSelect, onEvent]);
+  useEffect(() => {
+    picked.current = selected;
+  }, [selected]);
 
   useImperativeHandle(apiRef, () => ({
     resetView: () => ctl.current.fit(),
@@ -59,6 +89,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
       const p = c.rig.root.toGlobal({ x: 0, y: -84 });
       return { x: p.x, y: p.y };
     },
+    panTo: (id) => ctl.current.panTo(id),
   }));
 
   useEffect(() => {
@@ -94,12 +125,20 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
 
       const rebuildRoom = () => {
         room?.destroy();
-        const owners: DeskOwner[] = Array.from({ length: layout.slots }, (_, i) => {
+        const deskAgents = Array.from({ length: layout.slots }, (_, i) => {
           const owner = [...desks.entries()].find(([, d]) => d === i)?.[0];
-          const a = owner ? data.current.agents.find((x) => x.id === owner) : null;
-          return a ? { id: a.id, name: a.name, color: lookFor(a).color } : null;
+          return (owner ? data.current.agents.find((x) => x.id === owner) : null) ?? null;
         });
-        room = buildRoom(layout, owners, dark, { mono: sceneChrome().fontMono });
+        const labels = deskLabels(deskAgents);
+        const owners: DeskOwner[] = deskAgents.map((a, i) => (a ? { id: a.id, label: labels[i] ?? a.name, color: lookFor(a).color } : null));
+        // a tag click behaves like clicking the agent itself
+        room = buildRoom(layout, owners, dark, { mono: sceneChrome().fontMono }, (slot, phase) => {
+          const a = deskAgents[slot];
+          const c = a ? chars.get(a.id) : undefined;
+          if (!c) return;
+          if (phase === "down") hitChar = true;
+          else pickChar(c);
+        });
         world.removeChildren();
         world.addChild(room.back, sorted);
         for (const p of room.props) sorted.addChild(p);
@@ -112,25 +151,58 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
 
       // ---------- camera ----------
       let userMoved = false;
+      let panAnim: { fx: number; fy: number; tx: number; ty: number; t: number } | null = null;
+      /** The true whole-room fit (also the zoom-out minimum). */
+      const fitScale = () => Math.min(app.screen.width / (layout.width + MARGIN * 2), app.screen.height / (layout.height + MARGIN * 2));
+      const openScale = () => Math.max(fitScale(), OPEN_FLOOR);
+      const floorApplies = () => openScale() > fitScale() + 1e-6;
       const clampZoom = (z: number) => {
         const f = fitScale();
-        return Math.min(f * 2.6, Math.max(f * 0.75, z));
+        return Math.min(Math.max(f * 2.6, openScale() * 1.8), Math.max(f, z));
       };
-      const fitScale = () => Math.min(app.screen.width / (layout.width + 40), app.screen.height / (layout.height + 40));
+      /** Keeps the room edge from passing the viewport edge (and keeps it on screen on an axis where it fits). */
+      const clampPan = (x: number, y: number) => {
+        const z = world.scale.x;
+        const axis = (pos: number, room: number, view: number) => {
+          const size = room * z;
+          if (size + MARGIN * 2 <= view) return Math.min(view - size - MARGIN, Math.max(MARGIN, pos));
+          return Math.min(MARGIN, Math.max(view - size - MARGIN, pos));
+        };
+        return { x: axis(x, layout.width, app.screen.width), y: axis(y, layout.height, app.screen.height) };
+      };
+      const setPan = (x: number, y: number) => {
+        const p = clampPan(x, y);
+        world.position.set(p.x, p.y);
+      };
       const fit = () => {
-        const z = fitScale();
+        const z = openScale();
         world.scale.set(z);
-        world.position.set((app.screen.width - layout.width * z) / 2, (app.screen.height - layout.height * z) / 2);
+        panAnim = null;
+        const x = (app.screen.width - layout.width * z) / 2;
+        // when the legibility floor applies: top-aligned, so the wall and the first rows are in view
+        if (floorApplies()) setPan(x, MARGIN);
+        else world.position.set(x, (app.screen.height - layout.height * z) / 2);
         userMoved = false;
       };
       ctl.current.fit = fit;
+      ctl.current.panTo = (id: string) => {
+        const c = chars.get(id);
+        const seat = c ? layout.seats[c.desk] : null;
+        if (!seat) return;
+        const z = world.scale.x;
+        const target = clampPan(app.screen.width / 2 - seat.x * z, app.screen.height / 2 - (seat.y - 50) * z);
+        userMoved = true;
+        if (reduced) world.position.set(target.x, target.y);
+        else panAnim = { fx: world.x, fy: world.y, tx: target.x, ty: target.y, t: 0 };
+      };
       const zoomAt = (sx: number, sy: number, factor: number) => {
         const z0 = world.scale.x;
         const z1 = clampZoom(z0 * factor);
         const wx = (sx - world.x) / z0;
         const wy = (sy - world.y) / z0;
         world.scale.set(z1);
-        world.position.set(sx - wx * z1, sy - wy * z1);
+        setPan(sx - wx * z1, sy - wy * z1);
+        panAnim = null;
         userMoved = true;
       };
       const canvas = app.canvas;
@@ -168,7 +240,8 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
           const dy = p.y - drag.y;
           if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
           if (drag.moved) {
-            world.position.set(drag.wx + dx, drag.wy + dy);
+            panAnim = null;
+            setPan(drag.wx + dx, drag.wy + dy);
             userMoved = true;
             canvas.style.cursor = "grabbing";
           }
@@ -187,7 +260,15 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
       const onWheel = (e: WheelEvent) => {
         e.preventDefault();
         const p = local(e);
-        zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0015));
+        // a room bigger than the screen scrolls like a page; ctrl+wheel (and trackpad pinch) still zooms
+        if (floorApplies() && !e.ctrlKey) {
+          const k = e.deltaMode === 1 ? 16 : 1;
+          panAnim = null;
+          setPan(world.x - (e.shiftKey ? e.deltaY : e.deltaX) * k, world.y - (e.shiftKey ? 0 : e.deltaY) * k);
+          userMoved = true;
+          return;
+        }
+        zoomAt(p.x, p.y, Math.exp(-e.deltaY * (e.ctrlKey ? 0.006 : 0.0015)));
       };
       canvas.addEventListener("pointerdown", onDown);
       window.addEventListener("pointermove", onMove);
@@ -202,6 +283,13 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
         canvas.removeEventListener("wheel", onWheel);
       });
       let hitChar = false;
+      /** Click on an agent or its desk tag: it jumps and waves, then its card opens. */
+      const pickChar = (ch: Char) => {
+        if (drag?.moved) return;
+        ch.brain.wave();
+        cbs.current.onEvent?.("click");
+        setTimeout(() => cbs.current.onSelect(ch.agent.id), 380);
+      };
 
       // ---------- characters ----------
       const sync = () => {
@@ -251,12 +339,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
             root.on("pointerdown", () => {
               hitChar = true;
             });
-            root.on("pointertap", () => {
-              if (drag?.moved) return;
-              ch.brain.wave();
-              cbs.current.onEvent?.("click");
-              setTimeout(() => cbs.current.onSelect(ch.agent.id), 380);
-            });
+            root.on("pointertap", () => pickChar(ch));
             chars.set(a.id, c);
             sorted.addChild(root);
           }
@@ -275,6 +358,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
 
       const ro = new ResizeObserver(() => {
         if (!userMoved) fit();
+        else setPan(world.x, world.y);
       });
       ro.observe(el);
       cleanups.push(() => ro.disconnect());
@@ -301,6 +385,13 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
           sync();
         }
         room?.update(clock, reduced);
+        if (panAnim) {
+          // eased glide to a desk ("N waiting for you")
+          panAnim.t = Math.min(1, panAnim.t + dt / 450);
+          const k = 1 - (1 - panAnim.t) ** 3;
+          world.position.set(panAnim.fx + (panAnim.tx - panAnim.fx) * k, panAnim.fy + (panAnim.ty - panAnim.fy) * k);
+          if (panAnim.t >= 1) panAnim = null;
+        }
         const { liveRuns: runs } = data.current;
         const now = Date.now();
         let anyTyping = false;
@@ -315,6 +406,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
             room?.setStatus(c.desk, activityHex(activity));
           }
           c.prevWorking = working;
+          c.brain.cardOpen = picked.current === c.agent.id;
           const pose = c.brain.update(dt, {
             activity,
             thinking: working && isThinking(run, now),

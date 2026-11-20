@@ -36,6 +36,7 @@ const IDLE_LONG_MS = 120_000;
 const DWELL_MS: [number, number] = [7000, 11000];
 const DONE_MS = 1900;
 const WAVE_MS = 1300;
+const EMBLEM_HOVER_MS = 350;
 const IDLE_ACTS: IdleAct[] = ["look", "sip", "stretch", "yawn", "swing", "glance", "hum", "show"];
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -66,6 +67,10 @@ export class CharacterBrain {
   private lookTarget: Pt | null = null;
   private longIdleKind: "doze" | "read" = Math.random() < 0.5 ? "doze" : "read";
   hovered = false;
+  /** How long the pointer has rested on this character (ms); the emblem waits for EMBLEM_HOVER_MS. */
+  private hoverMs = 0;
+  /** Set by the scene while this agent's click card is open: no hover emblem then. */
+  cardOpen = false;
 
   constructor(
     nav: Navigator | null,
@@ -138,6 +143,8 @@ export class CharacterBrain {
     this.t += dt / 1000;
     this.waveLeft = Math.max(0, this.waveLeft - dt);
     this.greetLeft = Math.max(0, this.greetLeft - dt);
+    // continuous hover only: pointer-out resets the emblem delay
+    this.hoverMs = this.hovered ? this.hoverMs + dt : 0;
 
     // a run just ended: celebrate where we are, then go back
     if (this.prevActivity === "working" && inp.activity !== "working" && inp.activity !== "error") this.doneLeft = DONE_MS;
@@ -298,16 +305,19 @@ export class CharacterBrain {
       p.lookY = Math.max(-1, Math.min(1, (dy / d) * 1.3));
       p.away = false;
       if (p.mouth === "flat" || p.mouth === "sleep") p.mouth = "smile";
-      // perk up: eyes open, slight lift, and show the role emblem on an open palm
+      // perk up at once: eyes open, slight lift
       p.eyeOpen = Math.max(p.eyeOpen, 0.95);
       p.squash = Math.max(p.squash, 1.03);
-      if (this.state !== "walk") {
-        p.emblem = true;
-        p.armL = 1.15;
-        if (p.hold === "mug" || p.hold === "book") p.hold = "none";
-      }
     }
     if (reduced) return p;
+    // after a short, continuous hover the role emblem appears on an open palm, unless something else is
+    // already talking for the character (a task or waiting bubble), it is walking, or its card is open
+    const busyBubble = ["text", "dots", "code", "think", "gear", "wait"].includes(this.bubble.kind ?? "");
+    if (this.hovered && this.hoverMs >= EMBLEM_HOVER_MS && this.state !== "walk" && !busyBubble && !this.cardOpen) {
+      p.emblem = true;
+      p.armL = 1.15;
+      if (p.hold === "mug" || p.hold === "book") p.hold = "none";
+    }
     if (this.waveLeft > 0) {
       const k = 1 - this.waveLeft / WAVE_MS;
       p.bodyY = -Math.max(0, Math.sin(Math.min(1, k * 2.2) * Math.PI)) * 12;

@@ -33,6 +33,7 @@ export default function Office() {
   const pop = useRef<HTMLDivElement>(null);
   const prev = useRef<Record<string, Activity>>({});
   const soundRef = useRef(false);
+  const waitCursor = useRef(0);
 
   useEffect(() => {
     const on = soundEnabled();
@@ -133,7 +134,14 @@ export default function Office() {
   const pickedAct = picked ? activityOf(picked, data.liveRuns) : null;
   const pickedTask = picked ? runFor(picked.id, data.liveRuns)?.issueTitle : null;
   const working = visible.filter((a) => activityOf(a, data.liveRuns) === "working").length;
-  const waiting = visible.filter((a) => activityOf(a, data.liveRuns) === "pending").length;
+  const waitingAgents = visible.filter((a) => activityOf(a, data.liveRuns) === "pending");
+  const waiting = waitingAgents.length;
+  // each click pans to the next waiting agent's desk
+  const showWaiting = () => {
+    const a = waitingAgents[waitCursor.current % waitingAgents.length];
+    waitCursor.current++;
+    if (a) sceneApi.current?.panTo(a.id);
+  };
 
   return (
     <div className={`flex h-full flex-col transition-opacity duration-(--motion-duration-slow) ${leaving ? "opacity-0" : ""}`}>
@@ -141,13 +149,26 @@ export default function Office() {
         title="Office"
         meta={
           <>
-            {working} working · {waiting > 0 ? `${waiting} waiting for you · ` : ""}
+            {working} working ·{" "}
+            {waiting > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={showWaiting}
+                  className="cursor-pointer text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground"
+                  title={waiting > 1 ? "Show the next agent waiting for you" : "Show the agent waiting for you"}
+                >
+                  {waiting} waiting for you
+                </button>{" "}
+                ·{" "}
+              </>
+            )}
             {visible.length} agents
           </>
         }
         actions={
           <>
-            <Button onClick={() => sceneApi.current?.resetView()} title="Fit the whole office">
+            <Button onClick={() => sceneApi.current?.resetView()} title="Back to the opening view">
               <Icon name="fit" />
               <span className="hidden sm:inline">Reset view</span>
             </Button>
@@ -165,7 +186,7 @@ export default function Office() {
       />
 
       <div className="relative min-h-0 flex-1 overflow-hidden bg-muted">
-        <OfficeScene agents={data.agents} liveRuns={data.liveRuns} onSelect={onSelect} onEvent={onEvent} apiRef={sceneApi} />
+        <OfficeScene agents={data.agents} liveRuns={data.liveRuns} onSelect={onSelect} onEvent={onEvent} selected={selected} apiRef={sceneApi} />
 
         {unreachable && (
           <InlineNotice tone="warning" className="absolute left-4 right-4 top-4 sm:right-auto">
