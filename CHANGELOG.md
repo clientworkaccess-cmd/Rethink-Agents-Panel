@@ -1,5 +1,6 @@
 # Changelog
 
+- 2026-11-21 — Office polish, part 2: phone activity card folds to one row (tap to expand), phone "N waiting" button in the header actions, sidebar starts as a rail below 1024 px unless the user chose, chat tables keep headers on one line, Pixi scenes resize with their container (sidebar toggle).
 - 2026-11-21 — Office polish (decisions on PR #4): legibility floor (0.85) with clamped pan and wheel-scroll for big teams, "N waiting for you" pans to the desk, unique clickable name tags (role only in the card), calmer hover emblem (350 ms delay, hidden during bubbles/walking/open card/reduced motion, static glow); lounge and team-strip names and bubbles fit narrow screens.
 - 2026-11-20 — Brief 03 character and office redesign: chibi characters (one look per agent from id + role, shared art for Pixi rig and SVG avatars, role props and floating emblems), front-facing Office that grows with the team (tagged cubicles, chart wall, whiteboard, notice board, meeting table with screen, server racks; day and night), walking that never crosses furniture or other cubicles, PAPERCLIP_MOCK_AGENTS mock knob.
 - 2026-11-20 — Design refresh to the new DESIGN.md: single token layer in app/globals.css (light + dark, motion tokens), shared UI primitives, app shell with sidebar/bottom nav, every screen restyled; characters and scenes unchanged.

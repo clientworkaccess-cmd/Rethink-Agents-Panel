@@ -417,6 +417,20 @@ body {
 .md th {
   font-weight: var(--font-weight-semibold);
   color: var(--foreground);
+  white-space: nowrap;
+}
+.md td {
+  word-break: normal;
+  overflow-wrap: normal;
+  min-width: 8ch;
+  max-width: 32ch;
+}
+/* below sm (Tailwind's 40rem): tighter cell gap so tables fit a phone; wider tables scroll inside the block */
+@media (max-width: 39.98rem) {
+  .md th,
+  .md td {
+    padding-right: calc(var(--spacing) * 3);
+  }
 }
 .md hr {
   border: 0;

@@ -17,7 +17,7 @@ _Last updated: 2026-11-21_
 
 ## Next
 1. Strategist and Alyan review the office-polish PR in mock mode: `PAPERCLIP_MOCK_AGENTS=24` for the camera, plus a phone viewport.
-2. Merge after Alyan's OK. Possible follow-ups (not built): the activity card covers a third of the Office on a phone, and the header line with "N waiting for you" is hidden below the `sm` breakpoint.
+2. Merge after Alyan's OK. Part 2 on the same PR handles the phone and tablet items: the phone activity card folds to one row, phones get an "N waiting" header button, the sidebar starts as a rail below 1024 px (a stored choice always wins), and chat tables no longer wrap their headers.
 3. Still open from V2: Alyan runs the session check calls on the VPS; fix differences in the chat-session block of `lib/paperclip.ts`; check `heartbeat-runs`, `/activity`, `/costs/summary` field names against `lib/normalize.ts`.
 4. Deploy on the VPS (service + reverse proxy with TLS; port 3100 stays closed).
 

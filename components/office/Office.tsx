@@ -9,7 +9,7 @@ import { api, isUnreachable, usePoll } from "@/lib/client";
 import { setSoundEnabled, soundEnabled, sounds } from "@/lib/sound";
 import type { Activity, ActivityEvent, AgentsPayload } from "@/lib/types";
 import { ActivityList } from "../lists";
-import { ActivityStatus, Button, Icon, IconButton, InlineNotice, Loading, PageHeader, SectionLabel, Unreachable, flyoutClass } from "../ui";
+import { ActivityStatus, Button, Icon, IconButton, InlineNotice, Loading, PageHeader, SectionLabel, StatusDot, Unreachable, flyoutClass } from "../ui";
 import type { OfficeApi } from "./OfficeScene";
 
 // PixiJS lives in its own chunk and only loads when this tab opens.
@@ -29,6 +29,8 @@ export default function Office() {
   const [sound, setSound] = useState(false);
   const [ticks, setTicks] = useState<Tick[]>([]);
   const [leaving, setLeaving] = useState(false);
+  /** Phone only: the activity card is one row until tapped. */
+  const [feedOpen, setFeedOpen] = useState(false);
   const sceneApi = useRef<OfficeApi>(null);
   const pop = useRef<HTMLDivElement>(null);
   const prev = useRef<Record<string, Activity>>({});
@@ -104,7 +106,11 @@ export default function Office() {
     return () => cancelAnimationFrame(raf);
   }, [selected]);
 
-  const onSelect = useCallback((id: string | null) => setSelected(id), []);
+  const onSelect = useCallback((id: string | null) => {
+    setSelected(id);
+    // any tap in the room folds the phone activity card back to one row
+    setFeedOpen(false);
+  }, []);
   const onEvent = useCallback((kind: "click" | "done" | "type") => {
     if (!soundRef.current) return;
     if (kind === "click") sounds.pop();
@@ -137,11 +143,14 @@ export default function Office() {
   const waitingAgents = visible.filter((a) => activityOf(a, data.liveRuns) === "pending");
   const waiting = waitingAgents.length;
   // each click pans to the next waiting agent's desk
+  const waitingTitle = waiting > 1 ? "Show the next agent waiting for you" : "Show the agent waiting for you";
   const showWaiting = () => {
     const a = waitingAgents[waitCursor.current % waitingAgents.length];
     waitCursor.current++;
     if (a) sceneApi.current?.panTo(a.id);
   };
+
+  const feed = ticks.map((t) => ({ id: t.id, text: t.text, at: t.at, agent: data.agents.find((a) => a.id === t.agentId) ?? null }));
 
   return (
     <div className={`flex h-full flex-col transition-opacity duration-(--motion-duration-slow) ${leaving ? "opacity-0" : ""}`}>
@@ -156,7 +165,7 @@ export default function Office() {
                   type="button"
                   onClick={showWaiting}
                   className="cursor-pointer text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground"
-                  title={waiting > 1 ? "Show the next agent waiting for you" : "Show the agent waiting for you"}
+                  title={waitingTitle}
                 >
                   {waiting} waiting for you
                 </button>{" "}
@@ -168,6 +177,13 @@ export default function Office() {
         }
         actions={
           <>
+            {/* phones: the header meta line is hidden, so the waiting shortcut lives with the actions */}
+            {waiting > 0 && (
+              <Button size="sm" onClick={showWaiting} title={waitingTitle} className="sm:hidden">
+                <StatusDot tone="waiting" />
+                {waiting} waiting
+              </Button>
+            )}
             <Button onClick={() => sceneApi.current?.resetView()} title="Back to the opening view">
               <Icon name="fit" />
               <span className="hidden sm:inline">Reset view</span>
@@ -226,14 +242,39 @@ export default function Office() {
         )}
 
         {ticks.length > 0 && (
-          <div className={`absolute bottom-4 left-4 right-4 py-2 sm:right-auto sm:w-aside ${flyoutClass}`} aria-live="polite">
-            <SectionLabel className="px-3 pb-1">Activity</SectionLabel>
-            <ActivityList
-              label="Recent activity"
-              density="compact"
-              items={ticks.slice(0, 4).map((t) => ({ id: t.id, text: t.text, at: t.at, agent: data.agents.find((a) => a.id === t.agentId) ?? null }))}
-            />
-          </div>
+          <>
+            {/* sm and up: the four-row card */}
+            <div className={`absolute bottom-4 left-4 right-4 hidden py-2 sm:right-auto sm:block sm:w-aside ${flyoutClass}`} aria-live="polite">
+              <SectionLabel className="px-3 pb-1">Activity</SectionLabel>
+              <ActivityList label="Recent activity" density="compact" items={feed.slice(0, 4)} />
+            </div>
+            {/* phones: only the latest event as one row; a tap opens the four-row card, a tap on it (or the room) folds it */}
+            {!picked && (
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={feedOpen}
+                aria-label={feedOpen ? "Recent activity, tap to fold" : "Latest activity, tap for more"}
+                onClick={() => setFeedOpen((o) => !o)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setFeedOpen((o) => !o);
+                  }
+                }}
+                className={`absolute bottom-4 left-4 right-4 cursor-pointer sm:hidden ${feedOpen ? "py-2" : ""} ${flyoutClass}`}
+              >
+                {feedOpen ? (
+                  <>
+                    <SectionLabel className="px-3 pb-1">Activity</SectionLabel>
+                    <ActivityList label="Recent activity" density="compact" items={feed.slice(0, 4)} />
+                  </>
+                ) : (
+                  <ActivityList label="Latest activity" items={feed.slice(0, 1)} />
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
