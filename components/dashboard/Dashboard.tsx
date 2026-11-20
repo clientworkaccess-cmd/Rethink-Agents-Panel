@@ -107,7 +107,7 @@ export default function Dashboard() {
         </header>
 
         {/* key numbers */}
-        <section aria-label="Key numbers" className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-line bg-line md:grid-cols-3 xl:grid-cols-5">
+        <section aria-label="Key numbers" className="grid grid-cols-2 overflow-hidden rounded-sm border-l border-t border-line md:grid-cols-3 xl:grid-cols-5">
           <Kpi label="Agents now">
             {m?.agents ? (
               <>
@@ -187,7 +187,7 @@ export default function Dashboard() {
           <SectionHead eyebrow="The team" title="Who is doing what" />
           <div className="dotgrid relative h-[190px] overflow-hidden rounded-sm border border-line">
             {agents.length ? (
-              <CrewScene members={members} labels rings maxHeight={120} onPick={pickAgent} />
+              <CrewScene members={members} labels rings maxHeight={120} bubbleWords={3} onPick={pickAgent} />
             ) : (
               <p className="pt-16 text-center text-caption text-body">No agents yet.</p>
             )}
@@ -355,7 +355,7 @@ const compact = (n: number) =>
 
 function Kpi({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="bg-canvas p-4">
+    <div className="border-b border-r border-line bg-canvas p-4 first:rounded-tl-sm">
       <p className="eyebrow mb-2">{label}</p>
       {children}
     </div>

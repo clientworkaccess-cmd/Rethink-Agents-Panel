@@ -165,8 +165,7 @@ export function buildRoom(layout: Layout, chairColors: number[], dark: boolean):
   const glow = new Graphics();
   if (P.night) {
     for (const x of [200, 610, 900]) {
-      glow.circle(x, 14, 70).fill({ color: 0xffd27a, alpha: 0.05 });
-      glow.circle(x, 14, 36).fill({ color: 0xffd27a, alpha: 0.07 });
+      for (let r = 60; r > 8; r -= 13) glow.circle(x, 10, r).fill({ color: 0xffd27a, alpha: 0.025 });
       glow.roundRect(x - 10, 4, 20, 8, 3).fill(0xffe2a8);
     }
     back.addChild(glow);
@@ -222,9 +221,11 @@ export function buildRoom(layout: Layout, chairColors: number[], dark: boolean):
   layout.seats.forEach((s, i) => {
     const chair = new Container();
     const ch = new Graphics();
+    // neutral chair with a thin stripe in the owner's colour (a coloured chair reads as a character from behind)
     const color = chairColors[i] ?? (dark ? 0x4a4360 : 0xd8d2e8);
-    ch.roundRect(-15, -52, 30, 30, 8).fill(mix(color, dark ? 0x000000 : 0xffffff, dark ? 0.35 : 0.35));
-    ch.roundRect(-15, -52, 30, 6, 3).fill({ color: 0xffffff, alpha: dark ? 0.08 : 0.35 });
+    const seat = dark ? 0x3a3449 : 0xe4e0ec;
+    ch.roundRect(-16, -50, 32, 26, 4).fill(seat);
+    ch.rect(-16, -32, 32, 3).fill(color);
     ch.rect(-2, -22, 4, 14).fill(P.deskLeg);
     // monitor at the back-left of the desk, screen turned toward the seat
     ch.roundRect(-50, -40, 30, 22, 3).fill(P.monitor);
@@ -232,7 +233,7 @@ export function buildRoom(layout: Layout, chairColors: number[], dark: boolean):
     ch.rect(-37, -18, 4, 8).fill(P.monitor);
     chair.addChild(ch);
     const glow = new Graphics();
-    glow.circle(-35, -29, P.night ? 30 : 18).fill({ color: P.night ? 0x9d85ff : 0xbfb0ff, alpha: P.night ? 0.16 : 0.1 });
+    for (let r = P.night ? 26 : 14; r > 4; r -= 6) glow.circle(-35, -29, r).fill({ color: P.night ? 0x9d85ff : 0xbfb0ff, alpha: P.night ? 0.05 : 0.04 });
     chair.addChild(glow);
     glows.push(glow);
     chair.position.set(s.x, s.y);
@@ -256,7 +257,7 @@ export function buildRoom(layout: Layout, chairColors: number[], dark: boolean):
     desk.addChild(d);
     if (P.night) {
       const lamp = new Graphics();
-      lamp.circle(52, -58, 26).fill({ color: 0xffd27a, alpha: 0.1 });
+      for (let r = 24; r > 6; r -= 6) lamp.circle(51, -58, r).fill({ color: 0xffd27a, alpha: 0.035 });
       lamp.rect(50, -62, 2, 14).fill(P.deskLeg);
       lamp.roundRect(44, -68, 14, 7, 3).fill(0xffe2a8);
       desk.addChild(lamp);

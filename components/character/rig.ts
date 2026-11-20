@@ -284,6 +284,8 @@ export class CharacterRig {
     this.body.scale.y = c.squash;
     this.body.scale.x = (2 - c.squash) * c.flip; // squash keeps volume
     this.body.rotation = c.lean;
+    // bubbles never read mirrored
+    this.bubble.scale.x = c.flip / Math.max(0.5, 2 - c.squash);
     this.legL.rotation = c.legL;
     this.legR.rotation = c.legR;
     this.legL.scale.y = this.legR.scale.y = c.seated ? 0.72 : 1;

@@ -261,7 +261,7 @@ export default function ChatView({
         </nav>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-[300px] flex-1 flex-col">
         {/* narrow screens: compact session picker */}
         <div className="flex items-center gap-2 border-b border-line p-2 md:hidden">
           <Link href="/chat" className="btn btn-ghost px-2" aria-label="Back to the lounge">

@@ -28,7 +28,8 @@ function lastDays(n: number): { key: string; start: number }[] {
   today.setHours(0, 0, 0, 0);
   return Array.from({ length: n }, (_, i) => {
     const d = new Date(today.getTime() - (n - 1 - i) * DAY);
-    return { key: d.toISOString().slice(0, 10), start: d.getTime() };
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { key, start: d.getTime() };
   });
 }
 

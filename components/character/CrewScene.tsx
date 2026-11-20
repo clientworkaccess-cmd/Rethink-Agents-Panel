@@ -29,13 +29,15 @@ type Props = {
   bubbles?: boolean;
   /** Character height in CSS px at most. */
   maxHeight?: number;
+  /** Words of the task title shown in speech bubbles. */
+  bubbleWords?: number;
   onPick?: (id: string) => void;
   apiRef?: Ref<CrewApi>;
 };
 
 type Member = { id: string; rig: CharacterRig; brain: CharacterBrain; hop: number; data: CrewMember };
 
-export default function CrewScene({ members, decor = "none", labels = false, rings = false, bubbles = true, maxHeight = 150, onPick, apiRef }: Props) {
+export default function CrewScene({ members, decor = "none", labels = false, rings = false, bubbles = true, maxHeight = 150, bubbleWords = 6, onPick, apiRef }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const data = useRef(members);
   const pick = useRef(onPick);
@@ -111,7 +113,7 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
         const lx = Math.max(40, w / 2 - sw / 2 - 70 * scale);
         deco.rect(lx - 1.5, base - 150 * scale, 3, 150 * scale).fill(dark ? 0x5a5270 : 0xb7b0c8);
         deco.roundRect(lx - 18 * scale, base - 168 * scale, 36 * scale, 22 * scale, 6).fill(dark ? 0xffe2a8 : 0xfff3d6);
-        if (dark) deco.circle(lx, base - 150 * scale, 90 * scale).fill({ color: 0xffd27a, alpha: 0.07 });
+        if (dark) for (let r = 90; r > 10; r -= 16) deco.circle(lx, base - 157 * scale, r * scale).fill({ color: 0xffd27a, alpha: 0.025 });
         const px = Math.min(w - 40, w / 2 + sw / 2 + 70 * scale);
         deco.roundRect(px - 14 * scale, base - 22 * scale, 28 * scale, 24 * scale, 4).fill(dark ? 0x9c6b5a : 0xe9a58a);
         for (const [dx, dy, r] of [
@@ -227,7 +229,7 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
           const pose = m.brain.update(dt, {
             activity: d.activity,
             thinking: !!d.thinking,
-            task: bubbleText(d.task ?? (d.activity === "working" ? "Working on a task" : "")),
+            task: bubbleText(d.task ?? (d.activity === "working" ? "Working on a task" : ""), bubbleWords),
             steps: stepsFor(d.agent.role, d.agent.name),
             reduced,
           });

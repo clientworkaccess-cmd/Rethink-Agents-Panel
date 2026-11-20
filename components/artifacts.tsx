@@ -164,7 +164,7 @@ function ArtifactBody({ artifact }: { artifact: Artifact }) {
  * Slides in from the right, resizable from its left edge, expands to full width, closes smoothly.
  */
 export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact; onClose: () => void; mode: "column" | "overlay" }) {
-  const [width, setWidth] = useState(560);
+  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 560 : Math.round(Math.min(600, Math.max(340, window.innerWidth * (mode === "column" ? 0.42 : 0.6))))));
   const [expanded, setExpanded] = useState(false);
   const [closing, setClosing] = useState(false);
   const drag = useRef<{ x: number; w: number } | null>(null);
