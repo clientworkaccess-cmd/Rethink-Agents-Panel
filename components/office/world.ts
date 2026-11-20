@@ -200,11 +200,13 @@ export class Grid {
     this.cols = Math.ceil(layout.width / CELL);
     this.rows = Math.ceil(layout.height / CELL);
     this.cells = new Uint8Array(this.cols * this.rows);
+    // a cell is blocked when any part of it overlaps the rectangle (conservative: paths and the
+    // line-of-sight check both read these cells, so neither can clip a corner of the furniture)
     const mark = (b: Rect, v: number) => {
-      const c0 = Math.max(0, Math.floor((b.x - CELL / 2) / CELL) + 1);
-      const c1 = Math.min(this.cols - 1, Math.ceil((b.x + b.w - CELL / 2) / CELL) - 1);
-      const r0 = Math.max(0, Math.floor((b.y - CELL / 2) / CELL) + 1);
-      const r1 = Math.min(this.rows - 1, Math.ceil((b.y + b.h - CELL / 2) / CELL) - 1);
+      const c0 = Math.max(0, Math.floor(b.x / CELL));
+      const c1 = Math.min(this.cols - 1, Math.floor((b.x + b.w - 0.001) / CELL));
+      const r0 = Math.max(0, Math.floor(b.y / CELL));
+      const r1 = Math.min(this.rows - 1, Math.floor((b.y + b.h - 0.001) / CELL));
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (this.cells[r * this.cols + c] === 0 || v === 1) this.cells[r * this.cols + c] = v;
     };
     for (const b of layout.interiors) mark(b, 2);
