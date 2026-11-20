@@ -1,405 +1,359 @@
 "use client";
-// The 2D office, drawn with PixiJS Graphics (all art is original, made here). Lazy-loaded by Office.tsx.
-import { Application, extend, useApplication, useTick } from "@pixi/react";
-import { Container, Graphics, Rectangle, Text, type Ticker } from "pixi.js";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ACTIVITY_HEX, agentColor } from "@/lib/agents";
-import type { Activity, Agent } from "@/lib/types";
-import { Brain } from "./brain";
-import { COLS, deskAt, sceneHeight, W, WALL_H } from "./layout";
+// The Office scene: room + one animated character per agent, with a camera (drag to pan, wheel or pinch to
+// zoom, reset). Lazy-loaded by Office.tsx (PixiJS lives in its own chunk). Pauses while the tab is hidden.
+import { Container, Rectangle } from "pixi.js";
+import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import { CharacterBrain } from "@/components/character/brain";
+import { lookFor } from "@/components/character/model";
+import { CharacterRig } from "@/components/character/rig";
+import { createStage, type Stage } from "@/components/character/stage";
+import { activityOf, bubbleText, isThinking, runFor } from "@/lib/agents";
+import { currentTheme, onThemeChange, prefersReducedMotion } from "@/lib/theme";
+import type { Agent, LiveRun } from "@/lib/types";
 import { stepsFor } from "./roles";
+import { buildRoom, type Room } from "./room";
+import { buildLayout, Grid, navigatorFor, W, type Layout } from "./world";
 
-extend({ Container, Graphics, Text });
+export type OfficeApi = {
+  resetView: () => void;
+  /** Happy jump + wave (used before leaving for the chat). */
+  celebrate: (agentId: string) => void;
+  /** Screen position (CSS px, relative to the canvas) just above the agent's head. */
+  headPos: (agentId: string) => { x: number; y: number } | null;
+};
 
-export type SceneAgent = { agent: Agent; activity: Activity };
-export type Pointer = { agentId: string; x: number; y: number };
+type Props = {
+  agents: Agent[];
+  liveRuns: LiveRun[];
+  onSelect: (agentId: string | null) => void;
+  onEvent?: (kind: "click" | "done" | "type") => void;
+  apiRef?: Ref<OfficeApi>;
+};
 
-const INK = 0x27251e;
-const PAPER = 0xfdfbfa;
-const MIST = 0xd1d1cd;
-const TEAL = 0x016a71;
-const WOOD = 0xd8b98c;
-const WOOD_EDGE = 0xb9966a;
-const SKIN = [0xf1d3b3, 0xe0b48f, 0xc68e64, 0x9c6b47];
-const HAIR = [0x3b2f2a, 0x6b4a32, 0x2f2b28, 0x8a6a4a, 0x5a4a3f];
+type Char = { agent: Agent; rig: CharacterRig; brain: CharacterBrain; desk: number; lastGreet: number; prevWorking: boolean };
 
-function pickBy(id: string, list: number[]) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return list[h % list.length];
-}
-
-export default function OfficeScene({
-  agents,
-  onHover,
-  onSelect,
-}: {
-  agents: SceneAgent[];
-  onHover: (p: Pointer | null) => void;
-  onSelect: (p: Pointer) => void;
-}) {
-  const wrap = useRef<HTMLDivElement>(null);
-  const box = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(W);
-
-  // Desks are assigned on first sight and kept, so new agents never reshuffle the room.
-  const [desks, setDesks] = useState<Record<string, number>>({});
-  let deskMap = desks;
-  if (agents.some(({ agent }) => !(agent.id in desks))) {
-    deskMap = { ...desks };
-    for (const { agent } of agents) {
-      if (agent.id in deskMap) continue;
-      const used = new Set(Object.values(deskMap));
-      let i = 0;
-      while (used.has(i)) i++;
-      deskMap[agent.id] = i;
-    }
-    setDesks(deskMap);
-  }
-  const deskCount = Math.max(COLS, ...Object.values(deskMap).map((i) => i + 1));
-  const slots = Math.ceil(deskCount / COLS) * COLS;
-  const height = sceneHeight(slots);
-  const scale = width / W;
+export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRef }: Props) {
+  const host = useRef<HTMLDivElement>(null);
+  const data = useRef({ agents, liveRuns });
+  const cbs = useRef({ onSelect, onEvent });
+  const ctl = useRef<{ fit: () => void; chars: Map<string, Char>; world: Container | null }>({
+    fit: () => {},
+    chars: new Map(),
+    world: null,
+  });
 
   useEffect(() => {
-    const el = wrap.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => setWidth(Math.max(320, e.contentRect.width)));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  return (
-    <div ref={wrap} className="w-full">
-      <div ref={box} style={{ height: height * scale }} className="relative w-full overflow-hidden rounded-2xl">
-        <Application resizeTo={box} background={0xf3ece0} antialias autoDensity resolution={typeof window === "undefined" ? 1 : Math.min(2, window.devicePixelRatio || 1)}>
-          <PauseWhenHidden />
-          <pixiContainer scale={scale} sortableChildren>
-            <Room height={height} />
-            {Array.from({ length: slots }, (_, i) => (
-              <Desk key={`desk-${i}`} index={i} />
-            ))}
-            {agents.map(({ agent, activity }) => (
-              <Character
-                key={agent.id}
-                agent={agent}
-                activity={activity}
-                deskIndex={deskMap[agent.id] ?? 0}
-                scale={scale}
-                onHover={onHover}
-                onSelect={onSelect}
-              />
-            ))}
-          </pixiContainer>
-        </Application>
-      </div>
-    </div>
-  );
-}
-
-/** Stops the animation loop while the browser tab is hidden. */
-function PauseWhenHidden() {
-  const { app } = useApplication();
+    data.current = { agents, liveRuns };
+  }, [agents, liveRuns]);
   useEffect(() => {
-    const onVis = () => {
-      if (!app?.ticker) return;
-      if (document.hidden) app.ticker.stop();
-      else app.ticker.start();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, [app]);
-  return null;
-}
+    cbs.current = { onSelect, onEvent };
+  }, [onSelect, onEvent]);
 
-function Room({ height }: { height: number }) {
-  const draw = useCallback(
-    (g: Graphics) => {
-      g.clear();
-      // floor with soft planks
-      g.rect(0, WALL_H, W, height - WALL_H).fill(0xeee4d3);
-      for (let y = WALL_H + 30; y < height; y += 30) g.rect(0, y, W, 1).fill({ color: INK, alpha: 0.04 });
-      // wall + baseboard
-      g.rect(0, 0, W, WALL_H).fill(0xf4efe6);
-      g.rect(0, WALL_H - 6, W, 6).fill(0xdcd0bc);
-
-      // chart wall
-      g.roundRect(70, 20, 200, 76, 8).fill(PAPER).stroke({ width: 1.5, color: MIST });
-      const bars = [26, 38, 31, 46, 52];
-      bars.forEach((h, i) => g.roundRect(88 + i * 22, 86 - h, 14, h, 2).fill(i === bars.length - 1 ? TEAL : 0xb9b5ab));
-      g.moveTo(206, 76).lineTo(222, 62).lineTo(236, 68).lineTo(254, 40).stroke({ width: 2, color: 0x72706b, cap: "round", join: "round" });
-      g.circle(254, 40, 3).fill(TEAL);
-
-      // whiteboard
-      g.roundRect(330, 22, 180, 72, 6).fill(PAPER).stroke({ width: 3, color: 0xbdb7ab });
-      g.moveTo(348, 42).lineTo(420, 42).stroke({ width: 2, color: 0x72706b, alpha: 0.5, cap: "round" });
-      g.moveTo(348, 56).lineTo(470, 56).stroke({ width: 2, color: 0x72706b, alpha: 0.35, cap: "round" });
-      g.moveTo(348, 70).lineTo(440, 70).stroke({ width: 2, color: TEAL, alpha: 0.5, cap: "round" });
-      g.roundRect(380, 94, 80, 4, 2).fill(0xbdb7ab);
-
-      // window
-      g.roundRect(566, 24, 84, 64, 6).fill(0xe9eef0).stroke({ width: 3, color: 0xdcd0bc });
-      g.rect(607, 24, 2, 64).fill(0xdcd0bc);
-      g.rect(566, 55, 84, 2).fill(0xdcd0bc);
-
-      // campaign / poster board (cork)
-      g.roundRect(690, 20, 180, 76, 8).fill(0xd9bb93).stroke({ width: 1.5, color: 0xc4a37a });
-      [
-        [706, 32, 44, 36],
-        [758, 30, 48, 30],
-        [814, 36, 40, 44],
-      ].forEach(([x, y, w, h], i) => {
-        g.rect(x, y, w, h).fill(PAPER);
-        g.rect(x + 6, y + 8, w - 12, 3).fill({ color: INK, alpha: 0.25 });
-        g.rect(x + 6, y + 15, w - 20, 3).fill({ color: INK, alpha: 0.15 });
-        g.circle(x + w / 2, y + 3, 2.5).fill(i === 1 ? TEAL : 0x9a6262);
-      });
-
-      // meeting table with chairs
-      const tx = W / 2;
-      const ty = height - 58;
-      for (const [cx, cy] of [
-        [tx - 70, ty - 26],
-        [tx, ty - 34],
-        [tx + 70, ty - 26],
-        [tx - 70, ty + 26],
-        [tx + 70, ty + 26],
-      ])
-        g.roundRect(cx - 12, cy - 9, 24, 18, 6).fill(0xbdb7ab);
-      g.ellipse(tx, ty + 3, 110, 30).fill(WOOD_EDGE);
-      g.ellipse(tx, ty, 110, 30).fill(WOOD);
-
-      // plants
-      for (const [px, py, s] of [
-        [36, WALL_H + 34, 1],
-        [W - 36, WALL_H + 34, 1],
-        [44, height - 34, 1.2],
-        [W - 44, height - 34, 1.2],
-      ])
-        drawPlant(g, px, py, s);
+  useImperativeHandle(apiRef, () => ({
+    resetView: () => ctl.current.fit(),
+    celebrate: (id) => ctl.current.chars.get(id)?.brain.wave(),
+    headPos: (id) => {
+      const c = ctl.current.chars.get(id);
+      if (!c || !ctl.current.world) return null;
+      const p = c.rig.root.toGlobal({ x: 0, y: -84 });
+      return { x: p.x, y: p.y };
     },
-    [height],
-  );
-  return <pixiGraphics draw={draw} zIndex={0} />;
-}
+  }));
 
-function drawPlant(g: Graphics, x: number, y: number, s: number) {
-  g.ellipse(x, y + 12 * s, 14 * s, 4 * s).fill({ color: INK, alpha: 0.1 });
-  for (const [dx, dy, r, c] of [
-    [-8, -16, 9, 0x7c8a5b],
-    [7, -18, 10, 0x6b8f78],
-    [0, -28, 10, 0x7c8a5b],
-    [-2, -12, 8, 0x6b8f78],
-  ])
-    g.circle(x + dx * s, y + dy * s, r * s).fill(c);
-  g.roundRect(x - 11 * s, y - 6 * s, 22 * s, 18 * s, 4 * s).fill(0xb98a62);
-}
+  useEffect(() => {
+    let stage: Stage | null = null;
+    let cancelled = false;
+    const cleanups: (() => void)[] = [];
 
-function Desk({ index }: { index: number }) {
-  const { x, y } = deskAt(index);
-  const draw = useCallback((g: Graphics) => {
-    g.clear();
-    g.roundRect(-62, -12, 124, 40, 6).fill(WOOD_EDGE);
-    g.roundRect(-62, -14, 124, 34, 6).fill(WOOD);
-    // laptop seen from the front (its lid faces us)
-    g.roundRect(-20, -26, 40, 22, 3).fill(0x8f8b82);
-    g.roundRect(-24, -6, 48, 5, 2).fill(0x6f6b63);
-    g.circle(0, -15, 2).fill({ color: PAPER, alpha: 0.7 });
-    // mug and papers
-    g.roundRect(34, -10, 10, 11, 3).fill(PAPER).stroke({ width: 1, color: MIST });
-    g.rect(-50, -8, 18, 12).fill(PAPER);
-  }, []);
-  const chair = useCallback((g: Graphics) => {
-    g.clear();
-    g.roundRect(-16, -44, 32, 34, 9).fill(0x8d8a80);
-  }, []);
-  return (
-    <>
-      <pixiGraphics x={x} y={y} draw={chair} zIndex={y - 40} />
-      <pixiGraphics x={x} y={y} draw={draw} zIndex={y + 5} />
-    </>
-  );
-}
-
-function Character({
-  agent,
-  activity,
-  deskIndex,
-  scale,
-  onHover,
-  onSelect,
-}: {
-  agent: Agent;
-  activity: Activity;
-  deskIndex: number;
-  scale: number;
-  onHover: (p: Pointer | null) => void;
-  onSelect: (p: Pointer) => void;
-}) {
-  const desk = deskAt(deskIndex);
-  const [brain] = useState(() => new Brain(desk.seat, desk.gapX, deskIndex));
-  const { seat, gapX } = desk;
-  useEffect(() => brain.setDesk(seat, gapX), [brain, seat.x, seat.y, gapX]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const root = useRef<Container>(null);
-  const body = useRef<Container>(null);
-  const legs = useRef<Graphics>(null);
-  const eyes = useRef<Graphics>(null);
-  const hands = useRef<Graphics>(null);
-  const clock = useRef(pickBy(agent.id + "t", [0, 1300, 2600, 3900, 5200]));
-  const steps = useMemo(() => stepsFor(agent.role, agent.name), [agent.role, agent.name]);
-  const working = activity === "working";
-
-  const color = agentColor(agent.id);
-  const skin = pickBy(agent.id + "s", SKIN);
-  const hair = pickBy(agent.id + "h", HAIR);
-
-  const tick = useCallback(
-    (ticker: Ticker) => {
-      const b = brain;
-      const dt = Math.min(ticker.deltaMS, 100);
-      clock.current += dt;
-      const t = clock.current / 1000;
-      b.update(dt, working, steps);
-      const r = root.current;
-      if (!r) return;
-      r.x = b.pos.x;
-      r.y = b.pos.y;
-      r.zIndex = b.pos.y;
-
-      const walking = b.mode === "walk";
-      const bob = walking ? Math.abs(Math.sin(t * 7)) * 2.5 : 0;
-      if (body.current) {
-        body.current.y = -bob;
-        body.current.scale.y = walking ? 1 : 1 + Math.sin(t * 1.7) * 0.015; // breathing
+    (async () => {
+      const el = host.current;
+      if (!el) return;
+      const s = await createStage(el);
+      if (cancelled) {
+        s.destroy();
+        return;
       }
-      if (legs.current) {
-        legs.current.visible = !b.seated;
-        legs.current.scale.y = walking ? 0.85 + Math.abs(Math.cos(t * 7)) * 0.15 : 1;
-      }
-      if (eyes.current) eyes.current.scale.y = t % 4.2 < 0.12 ? 0.15 : 1; // blink
-      const h = hands.current;
-      if (h) {
-        h.clear();
-        const busy = b.mode === "work";
-        if (busy && b.action === "type") {
-          const a = Math.sin(t * 9) * 1.5;
-          h.circle(-7, -12 + a, 3).fill(skin);
-          h.circle(7, -12 - a, 3).fill(skin);
-        } else if (busy && (b.action === "write" || b.action === "pin")) {
-          h.circle(-12, -14, 3).fill(skin);
-          h.circle(10 + Math.sin(t * 2.2) * 6, -40 + Math.cos(t * 2.2) * 3, 3).fill(skin);
-        } else if (busy && b.action === "study") {
-          h.circle(-12, -14, 3).fill(skin);
-          h.circle(8, -26 + Math.sin(t * 1.2) * 1, 3).fill(skin); // hand on chin
-        } else {
-          const swing = walking ? Math.sin(t * 7) * 3 : 0;
-          h.circle(-12, -14 + swing, 3).fill(skin);
-          h.circle(12, -14 - swing, 3).fill(skin);
+      stage = s;
+      const { app } = s;
+      const world = new Container();
+      const sorted = new Container();
+      sorted.sortableChildren = true;
+      app.stage.addChild(world);
+      ctl.current.world = world;
+
+      const chars = ctl.current.chars;
+      chars.clear();
+      const desks = new Map<string, number>();
+      let layout: Layout = buildLayout(1);
+      let grid = new Grid(layout);
+      let room: Room | null = null;
+      let reduced = prefersReducedMotion();
+      let dark = currentTheme() === "dark";
+
+      const rebuildRoom = () => {
+        room?.destroy();
+        const chairColors = Array.from({ length: layout.slots }, (_, i) => {
+          const owner = [...desks.entries()].find(([, d]) => d === i)?.[0];
+          const a = owner ? data.current.agents.find((x) => x.id === owner) : null;
+          return a ? lookFor(a).color : dark ? 0x4a4360 : 0xd8d2e8;
+        });
+        room = buildRoom(layout, chairColors, dark);
+        world.removeChildren();
+        world.addChild(room.back, sorted);
+        for (const p of room.props) sorted.addChild(p);
+        for (const c of chars.values()) {
+          c.rig.setLabelColor(dark ? 0xcdc8d8 : 0x5d5d5d);
+          sorted.addChild(c.rig.root);
         }
-      }
-    },
-    [brain, working, steps, skin],
-  );
-  useTick(tick);
+      };
 
-  const drawShadow = useCallback((g: Graphics) => {
-    g.clear();
-    g.ellipse(0, 0, 13, 4).fill({ color: INK, alpha: 0.12 });
+      // ---------- camera ----------
+      let userMoved = false;
+      const clampZoom = (z: number) => {
+        const f = fitScale();
+        return Math.min(f * 2.6, Math.max(f * 0.75, z));
+      };
+      const fitScale = () => Math.min(app.screen.width / (W + 40), app.screen.height / (layout.height + 40));
+      const fit = () => {
+        const z = fitScale();
+        world.scale.set(z);
+        world.position.set((app.screen.width - W * z) / 2, (app.screen.height - layout.height * z) / 2);
+        userMoved = false;
+      };
+      ctl.current.fit = fit;
+      const zoomAt = (sx: number, sy: number, factor: number) => {
+        const z0 = world.scale.x;
+        const z1 = clampZoom(z0 * factor);
+        const wx = (sx - world.x) / z0;
+        const wy = (sy - world.y) / z0;
+        world.scale.set(z1);
+        world.position.set(sx - wx * z1, sy - wy * z1);
+        userMoved = true;
+      };
+      const canvas = app.canvas;
+      const pointers = new Map<number, { x: number; y: number }>();
+      let drag: { x: number; y: number; wx: number; wy: number; moved: boolean } | null = null;
+      let pinch: { d: number } | null = null;
+      const local = (e: PointerEvent | WheelEvent) => {
+        const r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+      };
+      const onDown = (e: PointerEvent) => {
+        const p = local(e);
+        pointers.set(e.pointerId, p);
+        if (pointers.size === 1) drag = { x: p.x, y: p.y, wx: world.x, wy: world.y, moved: false };
+        if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
+          drag = null;
+        }
+      };
+      const onMove = (e: PointerEvent) => {
+        const p = local(e);
+        // where the cursor is in world space (for characters that look at it)
+        const wp = { x: (p.x - world.x) / world.scale.x, y: (p.y - world.y) / world.scale.y };
+        for (const c of chars.values()) if (c.brain.hovered) c.brain.lookAt(wp);
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, p);
+        if (pinch && pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch.d);
+          pinch.d = d;
+        } else if (drag) {
+          const dx = p.x - drag.x;
+          const dy = p.y - drag.y;
+          if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+          if (drag.moved) {
+            world.position.set(drag.wx + dx, drag.wy + dy);
+            userMoved = true;
+            canvas.style.cursor = "grabbing";
+          }
+        }
+      };
+      const onUp = (e: PointerEvent) => {
+        pointers.delete(e.pointerId);
+        if (pointers.size < 2) pinch = null;
+        if (pointers.size === 0) {
+          if (drag && !drag.moved && !hitChar) cbs.current.onSelect(null);
+          drag = null;
+          canvas.style.cursor = "";
+        }
+        hitChar = false;
+      };
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        const p = local(e);
+        zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0015));
+      };
+      canvas.addEventListener("pointerdown", onDown);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      window.addEventListener("pointercancel", onUp);
+      canvas.addEventListener("wheel", onWheel, { passive: false });
+      cleanups.push(() => {
+        canvas.removeEventListener("pointerdown", onDown);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+        canvas.removeEventListener("wheel", onWheel);
+      });
+      let hitChar = false;
+
+      // ---------- characters ----------
+      const sync = () => {
+        const visible = data.current.agents.filter((a) => a.status !== "terminated");
+        // desks are assigned on first sight and kept, so new agents never reshuffle the room
+        let changed = false;
+        for (const a of visible) {
+          if (desks.has(a.id)) continue;
+          const used = new Set(desks.values());
+          let i = 0;
+          while (used.has(i)) i++;
+          desks.set(a.id, i);
+          changed = true;
+        }
+        const need = Math.max(1, ...[...desks.values()].map((d) => d + 1));
+        const nextLayout = buildLayout(need);
+        if (nextLayout.slots !== layout.slots || !room) {
+          layout = nextLayout;
+          grid = new Grid(layout);
+          for (const c of chars.values()) c.brain.setNavigator(navigatorFor(grid, layout, c.desk));
+          rebuildRoom();
+          if (!userMoved) fit();
+        } else if (changed) rebuildRoom();
+
+        for (const a of visible) {
+          let c = chars.get(a.id);
+          if (!c) {
+            const desk = desks.get(a.id)!;
+            const look = lookFor(a);
+            const rig = new CharacterRig(look, { label: a.name.toUpperCase(), labelColor: dark ? 0xcdc8d8 : 0x5d5d5d });
+            const nav = navigatorFor(grid, layout, desk);
+            // agents that appear later walk in from the left side of the room
+            const brain = new CharacterBrain(nav, desk, settled ? { x: 40, y: layout.tableY - 70 } : undefined);
+            c = { agent: a, rig, brain, desk, lastGreet: 0, prevWorking: false };
+            const root = rig.root;
+            root.eventMode = "static";
+            root.cursor = "pointer";
+            root.hitArea = new Rectangle(-22, -86, 44, 98);
+            const ch = c;
+            root.on("pointerover", () => {
+              ch.brain.hovered = true;
+            });
+            root.on("pointerout", () => {
+              ch.brain.hovered = false;
+              ch.brain.lookAt(null);
+            });
+            root.on("pointerdown", () => {
+              hitChar = true;
+            });
+            root.on("pointertap", () => {
+              if (drag?.moved) return;
+              ch.brain.wave();
+              cbs.current.onEvent?.("click");
+              setTimeout(() => cbs.current.onSelect(ch.agent.id), 380);
+            });
+            chars.set(a.id, c);
+            sorted.addChild(root);
+          }
+          c.agent = a;
+        }
+        for (const [id, c] of chars)
+          if (!visible.some((a) => a.id === id)) {
+            c.rig.destroy();
+            chars.delete(id);
+          }
+      };
+      let settled = false;
+      sync();
+      settled = data.current.agents.length > 0;
+      fit();
+
+      const ro = new ResizeObserver(() => {
+        if (!userMoved) fit();
+      });
+      ro.observe(el);
+      cleanups.push(() => ro.disconnect());
+      cleanups.push(
+        onThemeChange((t) => {
+          dark = t === "dark";
+          rebuildRoom();
+        }),
+      );
+      const mq = matchMedia("(prefers-reduced-motion: reduce)");
+      const onMotion = () => (reduced = mq.matches);
+      mq.addEventListener("change", onMotion);
+      cleanups.push(() => mq.removeEventListener("change", onMotion));
+
+      let clock = 0;
+      let typeTick = 0;
+      let syncTick = 0;
+      app.ticker.add((ticker) => {
+        const dt = Math.min(ticker.deltaMS, 100);
+        clock += dt / 1000;
+        syncTick += dt;
+        if (syncTick > 500) {
+          syncTick = 0;
+          sync();
+        }
+        room?.update(clock, reduced);
+        const { liveRuns: runs } = data.current;
+        const now = Date.now();
+        let anyTyping = false;
+        for (const c of chars.values()) {
+          const run = runFor(c.agent.id, runs);
+          const activity = activityOf(c.agent, runs);
+          const working = activity === "working";
+          if (c.prevWorking && !working && activity !== "error") cbs.current.onEvent?.("done");
+          c.prevWorking = working;
+          const pose = c.brain.update(dt, {
+            activity,
+            thinking: working && isThinking(run, now),
+            task: bubbleText(run?.issueTitle ?? "Working on a task"),
+            steps: stepsFor(c.agent.role, c.agent.name),
+            reduced,
+          });
+          if (c.brain.state === "work") anyTyping = true;
+          c.rig.apply(pose, dt, reduced);
+          c.rig.setBubble(c.brain.bubble.kind, c.brain.bubble.text);
+          const r = c.rig.root;
+          r.position.set(c.brain.pos.x, c.brain.pos.y);
+          r.zIndex = c.brain.pos.y + 0.5;
+          const target = c.brain.hovered ? 1.08 : 1;
+          r.scale.set(r.scale.x + (target - r.scale.x) * Math.min(1, dt / 80));
+        }
+        // characters greet each other when they pass
+        if (!reduced) {
+          const list = [...chars.values()];
+          for (let i = 0; i < list.length; i++)
+            for (let j = i + 1; j < list.length; j++) {
+              const a = list[i];
+              const b = list[j];
+              if (!a.brain.walking && !b.brain.walking) continue;
+              if (Math.hypot(a.brain.pos.x - b.brain.pos.x, a.brain.pos.y - b.brain.pos.y) > 70) continue;
+              if (clock - a.lastGreet < 12 || clock - b.lastGreet < 12) continue;
+              a.lastGreet = b.lastGreet = clock;
+              a.brain.greet();
+              b.brain.greet();
+            }
+        }
+        typeTick += dt;
+        if (anyTyping && typeTick > 260) {
+          typeTick = 0;
+          if (Math.random() < 0.5) cbs.current.onEvent?.("type");
+        }
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      for (const c of cleanups) c();
+      ctl.current.chars.clear();
+      ctl.current.world = null;
+      stage?.destroy();
+    };
   }, []);
-  const drawLegs = useCallback((g: Graphics) => {
-    g.clear();
-    g.roundRect(-8, -10, 6, 10, 2).fill(0x4a463d);
-    g.roundRect(2, -10, 6, 10, 2).fill(0x4a463d);
-  }, []);
-  const drawBody = useCallback(
-    (g: Graphics) => {
-      g.clear();
-      g.roundRect(-12, -32, 24, 24, 9).fill(color);
-      g.roundRect(-4, -32, 8, 5, 2).fill({ color: PAPER, alpha: 0.5 }); // collar
-      // head
-      g.ellipse(0, -46, 11.5, 9).fill(hair);
-      g.circle(0, -42, 10).fill(skin);
-      g.ellipse(0, -49, 9.5, 4.5).fill(hair);
-    },
-    [color, hair, skin],
-  );
-  const drawEyes = useCallback((g: Graphics) => {
-    g.clear();
-    g.circle(-3.6, 0, 1.5).fill(INK);
-    g.circle(3.6, 0, 1.5).fill(INK);
-  }, []);
-  const drawBadge = useCallback(
-    (g: Graphics) => {
-      g.clear();
-      g.circle(0, 0, 4.5).fill(0xfaf8f5);
-      g.circle(0, 0, 3.2).fill(ACTIVITY_HEX[activity]);
-    },
-    [activity],
-  );
 
-  const pointer = (): Pointer => {
-    const r = root.current;
-    const p = r ? r.getGlobalPosition() : { x: 0, y: 0 };
-    return { agentId: agent.id, x: p.x, y: p.y - 62 * scale };
-  };
-
-  return (
-    <pixiContainer
-      ref={root}
-      x={desk.seat.x}
-      y={desk.seat.y}
-      eventMode="static"
-      cursor="pointer"
-      hitArea={new Rectangle(-18, -66, 36, 70)}
-      onPointerOver={() => onHover(pointer())}
-      onPointerOut={() => onHover(null)}
-      onPointerTap={() => onSelect(pointer())}
-    >
-      <pixiGraphics draw={drawShadow} />
-      <pixiGraphics ref={legs} draw={drawLegs} visible={false} />
-      <pixiContainer ref={body}>
-        <pixiGraphics draw={drawBody} />
-        <pixiGraphics ref={eyes} draw={drawEyes} y={-41} />
-        <pixiGraphics ref={hands} draw={() => {}} />
-        <pixiGraphics draw={drawBadge} x={10} y={-52} />
-        <Bubble activity={activity} />
-        <pixiText
-          text={agent.name}
-          anchor={{ x: 0.5, y: 1 }}
-          y={-58}
-          resolution={2}
-          style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 11, fill: INK, fontWeight: "500" }}
-        />
-      </pixiContainer>
-    </pixiContainer>
-  );
-}
-
-/** "II" when paused, "?" when waiting for approval, red "!" on error. */
-function Bubble({ activity }: { activity: Activity }) {
-  const kind = activity === "paused" ? "II" : activity === "pending" ? "?" : activity === "error" ? "!" : null;
-  const draw = useCallback(
-    (g: Graphics) => {
-      g.clear();
-      if (!kind) return;
-      const fill = kind === "!" ? 0xb4483c : PAPER;
-      g.roundRect(-11, -11, 22, 20, 8).fill(fill).stroke({ width: 1, color: kind === "!" ? 0xb4483c : MIST });
-      g.poly([-3, 8, 3, 8, -5, 14]).fill(fill);
-    },
-    [kind],
-  );
-  if (!kind) return null;
-  return (
-    <pixiContainer x={22} y={-74}>
-      <pixiGraphics draw={draw} />
-      <pixiText
-        text={kind}
-        anchor={0.5}
-        y={-1}
-        resolution={2}
-        style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 12, fill: kind === "!" ? 0xffffff : INK, fontWeight: "500" }}
-      />
-    </pixiContainer>
-  );
+  return <div ref={host} className="absolute inset-0" aria-label="Office scene with the agent team" role="img" />;
 }

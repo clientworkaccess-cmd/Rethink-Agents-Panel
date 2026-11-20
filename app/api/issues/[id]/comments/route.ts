@@ -1,5 +1,5 @@
 import { apiError, handle } from "@/lib/api";
-import { listComments, postComment } from "@/lib/paperclip";
+import { listComments, postChatMessage } from "@/lib/paperclip";
 import type { NextRequest } from "next/server";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -11,7 +11,7 @@ export function GET(req: NextRequest, { params }: Ctx) {
   });
 }
 
-/** Sends a chat message. The only write the panel makes besides opening a chat. */
+/** Sends a chat message. Besides starting a chat session, the only write the panel makes. */
 export function POST(req: NextRequest, { params }: Ctx) {
   return handle(async () => {
     const { body, clientRequestId } = (await req.json().catch(() => ({}))) as { body?: unknown; clientRequestId?: unknown };
@@ -19,6 +19,6 @@ export function POST(req: NextRequest, { params }: Ctx) {
       return apiError("bad_request", "Message is empty or too long.", 400);
     if (typeof clientRequestId !== "string" || !/^[A-Za-z0-9-]{8,64}$/.test(clientRequestId))
       return apiError("bad_request", "Missing clientRequestId.", 400);
-    return { comment: await postComment((await params).id, body, clientRequestId) };
+    return { comment: await postChatMessage((await params).id, body, clientRequestId) };
   });
 }

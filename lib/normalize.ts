@@ -1,6 +1,6 @@
 // Defensive mapping from Paperclip JSON to panel types. Field names drift between
 // Paperclip releases, so every field tries a few likely names and falls back safely.
-import type { Agent, AgentStatus, Artifact, Comment, Issue, LiveRun } from "./types";
+import type { ActivityEvent, Agent, AgentStatus, Artifact, Comment, Issue, LiveRun } from "./types";
 
 type Obj = Record<string, unknown>;
 
@@ -82,6 +82,7 @@ export function toIssue(o: Obj): Issue | null {
     assigneeAgentId: str(o, "assigneeAgentId", "assignee.id", "assigneeAgent.id", "conversationAgentId"),
     createdAt: str(o, "createdAt"),
     updatedAt: str(o, "updatedAt", "createdAt"),
+    completedAt: str(o, "completedAt", "closedAt", "doneAt"),
   };
 }
 
@@ -187,4 +188,62 @@ function idFromContentPath(path: string | null): string | null {
 function keyFromPath(path: string | null): string | null {
   const m = path?.match(/documents\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : null;
+}
+
+/** A finished or running heartbeat run, for the dashboard charts. */
+export type RunRecord = { id: string; agentId: string | null; status: string; startedAt: string | null; finishedAt: string | null };
+
+export function toRunRecord(o: Obj): RunRecord | null {
+  const id = str(o, "id", "runId");
+  if (!id) return null;
+  return {
+    id,
+    agentId: str(o, "agentId", "agent.id"),
+    status: (str(o, "status") ?? "unknown").toLowerCase(),
+    startedAt: str(o, "startedAt", "createdAt"),
+    finishedAt: str(o, "finishedAt", "completedAt", "endedAt"),
+  };
+}
+
+export const RUN_OK = ["succeeded", "success", "completed", "done"];
+export const RUN_FAILED = ["failed", "error", "timed_out", "timeout"];
+
+/** Token and cost totals from a costs summary, trying the usual field names. */
+export function toUsage(o: unknown): { costCents: number | null; tokens: number | null } | null {
+  if (!isObj(o)) return null;
+  const src = isObj(o.summary) ? (o.summary as Obj) : o;
+  const costCents = num(src, "costCents", "totalCostCents", "spendCents", "total.costCents");
+  const input = num(src, "inputTokens", "totalInputTokens", "total.inputTokens") ?? 0;
+  const output = num(src, "outputTokens", "totalOutputTokens", "total.outputTokens") ?? 0;
+  const cached = num(src, "cachedInputTokens", "cacheReadTokens") ?? 0;
+  const total = num(src, "totalTokens", "tokens", "total.tokens");
+  const tokens = total ?? (input || output || cached ? input + output + cached : null);
+  if (costCents === null && tokens === null) return null;
+  return { costCents, tokens };
+}
+
+const ACTION_TEXT: [RegExp, ActivityEvent["kind"], string][] = [
+  [/run.*(succeed|complet|finish)/, "finished", "finished"],
+  [/run.*(fail|error|timed?_?out)/, "failed", "ran into a problem on"],
+  [/run.*(start|queued|running)/, "started", "started"],
+  [/issue.*creat/, "created", "created"],
+  [/comment/, "commented", "commented on"],
+  [/(document|attachment|work_?product|artifact)/, "artifact", "saved a file in"],
+  [/issue.*(done|complet|closed)/, "finished", "completed"],
+];
+
+/** One activity-log row as a plain sentence. `names` maps agent ids to names. */
+export function toActivityEvent(o: Obj, names: Record<string, string>): ActivityEvent | null {
+  const id = str(o, "id");
+  if (!id) return null;
+  const action = (str(o, "action", "type", "event", "kind") ?? "").toLowerCase();
+  const agentId = str(o, "agentId", "actorAgentId", "actor.agentId", "details.agentId") ??
+    (str(o, "actorType") === "agent" ? str(o, "actorId") : null);
+  const who = (agentId && names[agentId]) || str(o, "agentName", "actor.name", "actorName") || (agentId ? "An agent" : "You");
+  const title = str(o, "details.issueTitle", "details.title", "issue.title", "entityTitle", "title", "details.name");
+  const match = ACTION_TEXT.find(([re]) => re.test(action));
+  const kind = match?.[1] ?? "other";
+  const verb = match?.[2] ?? (action ? action.replace(/[._]/g, " ") : "did something");
+  const text = title ? `${who} ${verb} “${title.slice(0, 80)}”` : `${who} ${verb}`;
+  return { id, at: str(o, "createdAt", "at", "timestamp"), agentId, text, kind };
 }

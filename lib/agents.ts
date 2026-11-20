@@ -1,5 +1,6 @@
-// Status and colour helpers shared by Office, Dashboard and Chat.
+// Status helpers shared by Office, Dashboard and Chat.
 import type { Activity, Agent, LiveRun } from "./types";
+export { agentColor } from "@/components/character/model";
 
 /** Paperclip has no "waiting" status; it is derived here from status + live runs. */
 export function activityOf(agent: Agent, runs: LiveRun[]): Activity {
@@ -15,7 +16,7 @@ export const ACTIVITY_LABEL: Record<Activity, string> = {
   working: "Working",
   idle: "Idle",
   paused: "Paused",
-  pending: "Waiting for approval",
+  pending: "Waiting for you",
   error: "Error",
   hidden: "Terminated",
 };
@@ -25,36 +26,42 @@ export const ACTIVITY_COLOR: Record<Activity, string> = {
   working: "var(--color-st-working)",
   idle: "var(--color-st-idle)",
   paused: "var(--color-st-paused)",
-  pending: "var(--color-st-paused)",
+  pending: "var(--color-st-waiting)",
   error: "var(--color-st-error)",
   hidden: "var(--color-st-idle)",
 };
 
 export const ACTIVITY_HEX: Record<Activity, number> = {
-  working: 0x016a71,
-  idle: 0x92918b,
-  paused: 0xb38a3e,
-  pending: 0xb38a3e,
-  error: 0xb4483c,
-  hidden: 0x92918b,
+  working: 0x7451f2,
+  idle: 0x8a8a8a,
+  paused: 0xa69ea7,
+  pending: 0x0072c6,
+  error: 0xc2410c,
+  hidden: 0x8a8a8a,
 };
-
-function hash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  return h >>> 0;
-}
-
-// Muted, warm palette that sits well on parchment.
-const PALETTE = [0x5b8a8c, 0xa77b5a, 0x7c8a5b, 0x8a6f8f, 0x5e7899, 0xb08d4f, 0x9a6262, 0x6b8f78];
-
-/** A stable colour per agent, derived from its id. */
-export function agentColor(id: string): number {
-  return PALETTE[hash(id) % PALETTE.length];
-}
 
 export const hexCss = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
 
 export function runFor(agentId: string, runs: LiveRun[]): LiveRun | undefined {
   return runs.find((r) => r.agentId === agentId);
+}
+
+/** A live run with no output for 10 s or more: the agent is "thinking". */
+export function isThinking(run: LiveRun | undefined, now = Date.now()): boolean {
+  if (!run?.lastOutputAt) return false;
+  const t = new Date(run.lastOutputAt).getTime();
+  return Number.isFinite(t) && now - t >= 10_000;
+}
+
+export function roleLabel(agent: { name: string; role: string }): string {
+  const r = agent.role.trim();
+  if (!r || r.toLowerCase() === agent.name.toLowerCase()) return "";
+  return r.length <= 4 ? r.toUpperCase() : r.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/** Trims a task title to about six words for speech bubbles. */
+export function bubbleText(title: string | null | undefined, words = 6): string {
+  if (!title) return "";
+  const w = title.replace(/\s+/g, " ").trim().split(" ");
+  return w.length <= words ? `${w.join(" ")}…` : `${w.slice(0, words).join(" ")}…`;
 }
