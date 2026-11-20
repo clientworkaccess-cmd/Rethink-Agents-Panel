@@ -268,7 +268,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, selec
           userMoved = true;
           return;
         }
-        zoomAt(p.x, p.y, Math.exp(-e.deltaY * (e.ctrlKey ? 0.006 : 0.0015)));
+        zoomAt(p.x, p.y, Math.exp(-e.deltaY * (e.ctrlKey ? 0.004 : 0.0015)));
       };
       canvas.addEventListener("pointerdown", onDown);
       window.addEventListener("pointermove", onMove);

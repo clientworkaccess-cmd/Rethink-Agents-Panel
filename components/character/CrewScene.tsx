@@ -92,6 +92,8 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
       let dark = currentTheme() === "dark";
       let reduced = prefersReducedMotion();
       let scale = 1;
+      /** Room per character in rig units; tight rows get shorter task bubbles. */
+      let slotW = 999;
       const cursor = { x: 0, y: 0 };
 
       const drawDecor = () => {
@@ -142,6 +144,9 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
         list.forEach((m, i) => {
           m.rig.root.position.set(w / 2 + (i - (n - 1) / 2) * gap, base);
           m.brain.pos = { x: m.rig.root.x, y: m.rig.root.y };
+          // names never run into each other on narrow screens
+          if (labels) m.rig.fitLabel(gap / scale - 8);
+          slotW = gap / scale;
         });
         drawDecor();
       };
@@ -232,7 +237,7 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
           const pose = m.brain.update(dt, {
             activity: d.activity,
             thinking: !!d.thinking,
-            task: bubbleText(d.task ?? (d.activity === "working" ? "Working on a task" : ""), bubbleWords),
+            task: bubbleText(d.task ?? (d.activity === "working" ? "Working on a task" : ""), slotW < 150 ? Math.min(3, bubbleWords) : bubbleWords),
             steps: stepsFor(d.agent.role, d.agent.name),
             reduced,
           });

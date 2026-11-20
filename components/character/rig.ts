@@ -257,6 +257,21 @@ export class CharacterRig {
     if (this.label) this.label.visible = on;
   }
 
+  /** Shortens the name under the feet (with an ellipsis) so it fits `maxWidth` (in the rig's own units). */
+  fitLabel(maxWidth: number) {
+    const l = this.label;
+    if (!l) return;
+    this.fullLabel ??= l.text;
+    l.text = this.fullLabel;
+    if (l.width <= maxWidth) return;
+    let t = this.fullLabel;
+    while (t.length > 2 && l.width > maxWidth) {
+      t = t.slice(0, -1);
+      l.text = t.trimEnd() + "…";
+    }
+  }
+  private fullLabel: string | undefined;
+
   /** Re-reads the token colours for the chrome around the art (label, bubble) and redraws the bubble. */
   refreshChrome() {
     this.chrome = sceneChrome();

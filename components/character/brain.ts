@@ -312,7 +312,7 @@ export class CharacterBrain {
     if (reduced) return p;
     // after a short, continuous hover the role emblem appears on an open palm, unless something else is
     // already talking for the character (a task or waiting bubble), it is walking, or its card is open
-    const busyBubble = ["text", "dots", "code", "think", "gear", "wait"].includes(this.bubble.kind ?? "");
+    const busyBubble = ["text", "dots", "code", "think", "gear", "wait", "error", "pause"].includes(this.bubble.kind ?? "");
     if (this.hovered && this.hoverMs >= EMBLEM_HOVER_MS && this.state !== "walk" && !busyBubble && !this.cardOpen) {
       p.emblem = true;
       p.armL = 1.15;
