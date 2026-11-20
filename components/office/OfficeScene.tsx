@@ -103,7 +103,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
         world.addChild(room.back, sorted);
         for (const p of room.props) sorted.addChild(p);
         for (const c of chars.values()) {
-          c.rig.setLabelColor(dark ? 0xcdc8d8 : 0x5d5d5d);
+          c.rig.refreshChrome();
           sorted.addChild(c.rig.root);
         }
       };
@@ -229,7 +229,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
           if (!c) {
             const desk = desks.get(a.id)!;
             const look = lookFor(a);
-            const rig = new CharacterRig(look, { label: a.name.toUpperCase(), labelColor: dark ? 0xcdc8d8 : 0x5d5d5d });
+            const rig = new CharacterRig(look, { label: a.name.toUpperCase() });
             const nav = navigatorFor(grid, layout, desk);
             // agents that appear later walk in from the left side of the room
             const brain = new CharacterBrain(nav, desk, settled ? { x: 40, y: layout.tableY - 70 } : undefined);

@@ -3,7 +3,8 @@
 // animated avatar in the chat sidebar all use this. Same rig + brain as the Office. Lazy-load it.
 import { Container, Graphics, Rectangle } from "pixi.js";
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
-import { ACTIVITY_HEX, bubbleText } from "@/lib/agents";
+import { bubbleText } from "@/lib/agents";
+import { activityHex } from "@/lib/tokens";
 import { currentTheme, onThemeChange, prefersReducedMotion } from "@/lib/theme";
 import type { Activity, Agent } from "@/lib/types";
 import { stepsFor } from "@/components/office/roles";
@@ -153,8 +154,7 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
           if (!m) {
             const rig = new CharacterRig(lookFor(mem.agent), {
               label: labels ? mem.agent.name.toUpperCase() : undefined,
-              labelColor: dark ? 0xcdc8d8 : 0x5d5d5d,
-              ring: rings ? ACTIVITY_HEX[mem.activity] : null,
+              ring: rings ? activityHex(mem.activity) : null,
             });
             const brain = new CharacterBrain(null, map.size);
             m = { id: mem.agent.id, rig, brain, hop: 0, data: mem };
@@ -178,7 +178,7 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
             map.set(mem.agent.id, m);
             changed = true;
           }
-          if (rings && m.data.activity !== mem.activity) m.rig.setRing(ACTIVITY_HEX[mem.activity]);
+          if (rings && m.data.activity !== mem.activity) m.rig.setRing(activityHex(mem.activity));
           m.data = mem;
         }
         for (const [id, m] of map)
@@ -198,7 +198,10 @@ export default function CrewScene({ members, decor = "none", labels = false, rin
       cleanups.push(
         onThemeChange((t) => {
           dark = t === "dark";
-          for (const m of map.values()) m.rig.setLabelColor(dark ? 0xcdc8d8 : 0x5d5d5d);
+          for (const m of map.values()) {
+            m.rig.refreshChrome();
+            if (rings) m.rig.setRing(activityHex(m.data.activity));
+          }
           drawDecor();
         }),
       );

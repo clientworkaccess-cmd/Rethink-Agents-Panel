@@ -2,7 +2,11 @@
 // Plain-SVG charts (no chart library): animated on load, calm tooltips, colours from theme variables.
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "@/lib/theme";
+import { flyoutClass } from "../ui";
 import type { DayPoint } from "@/lib/types";
+
+/** Matches --motion-counter (JS needs the number for its rAF loop; reduced motion skips it). */
+const COUNTER_MS = 700;
 
 /** Counts up to `value` when it first appears or changes. */
 export function Counter({ value, format = (n) => Math.round(n).toLocaleString() }: { value: number; format?: (n: number) => string }) {
@@ -20,7 +24,7 @@ export function Counter({ value, format = (n) => Math.round(n).toLocaleString() 
     const a = from.current;
     let raf = 0;
     const step = (now: number) => {
-      const k = Math.min(1, (now - start) / 700);
+      const k = Math.min(1, (now - start) / COUNTER_MS);
       const e = 1 - (1 - k) ** 3;
       setShown(a + (value - a) * e);
       if (k < 1) raf = requestAnimationFrame(step);
@@ -59,8 +63,8 @@ export function ActivityChart({ runs, done }: { runs: DayPoint[] | null; done: D
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Runs per day and tasks completed per day, last 14 days" onMouseLeave={() => setHover(null)}>
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--color-line)" strokeWidth="1" />
-            <text x={pad.l - 6} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--color-muted)" fontFamily="var(--font-mono)">
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="var(--chart-grid)" strokeWidth="1" />
+            <text x={pad.l - 6} y={y(t) + 3} textAnchor="end" fontSize="9" fill="var(--muted-foreground)" fontFamily="var(--font-mono)">
               {t}
             </text>
           </g>
@@ -75,8 +79,12 @@ export function ActivityChart({ runs, done }: { runs: DayPoint[] | null; done: D
               y={grown ? y(p.value) : H - pad.b}
               height={grown ? h : 0}
               rx="2"
-              fill={hover === i ? "var(--color-accent)" : "color-mix(in srgb, var(--color-accent) 55%, transparent)"}
-              style={{ transition: reduced ? undefined : `y 600ms cubic-bezier(.2,.8,.2,1) ${i * 25}ms, height 600ms cubic-bezier(.2,.8,.2,1) ${i * 25}ms, fill 150ms` }}
+              fill={hover === i ? "var(--chart-1)" : "color-mix(in oklab, var(--chart-1) 60%, transparent)"}
+              style={{
+                transition: reduced
+                  ? undefined
+                  : `y var(--motion-chart-grow) var(--motion-ease-standard) calc(var(--motion-stagger) * ${i}), height var(--motion-chart-grow) var(--motion-ease-standard) calc(var(--motion-stagger) * ${i}), fill var(--motion-duration-fast)`,
+              }}
             />
           );
         })}
@@ -84,22 +92,22 @@ export function ActivityChart({ runs, done }: { runs: DayPoint[] | null; done: D
           <path
             d={line}
             fill="none"
-            stroke="var(--color-info)"
+            stroke="var(--chart-2)"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
             pathLength={1}
             strokeDasharray="1"
             strokeDashoffset={grown ? 0 : 1}
-            style={{ transition: reduced ? undefined : "stroke-dashoffset 900ms ease-out 200ms" }}
+            style={{ transition: reduced ? undefined : "stroke-dashoffset var(--motion-chart-grow) var(--motion-ease-standard) var(--motion-duration-base)" }}
           />
         )}
         {done?.map((p, i) => (
-          <circle key={p.day} cx={pad.l + step * i + step / 2} cy={y(p.value)} r={hover === i ? 3.5 : 2.2} fill="var(--color-info)" />
+          <circle key={p.day} cx={pad.l + step * i + step / 2} cy={y(p.value)} r={hover === i ? 3.5 : 2.2} fill="var(--chart-2)" />
         ))}
         {days.map((p, i) =>
           i % 2 === 0 || i === n - 1 ? (
-            <text key={p.day} x={pad.l + step * i + step / 2} y={H - 8} textAnchor="middle" fontSize="9" fill="var(--color-muted)" fontFamily="var(--font-mono)">
+            <text key={p.day} x={pad.l + step * i + step / 2} y={H - 8} textAnchor="middle" fontSize="9" fill="var(--muted-foreground)" fontFamily="var(--font-mono)">
               {dayLabel(p.day)}
             </text>
           ) : null,
@@ -110,23 +118,23 @@ export function ActivityChart({ runs, done }: { runs: DayPoint[] | null; done: D
       </svg>
       {hover !== null && days[hover] && (
         <div
-          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 rounded-sm border border-line bg-canvas px-2.5 py-1.5 text-[12px] leading-snug"
+          className={`pointer-events-none absolute top-0 z-10 -translate-x-1/2 px-3 py-2 text-xs ${flyoutClass}`}
           style={{ left: `${((pad.l + step * hover + step / 2) / W) * 100}%` }}
         >
-          <p className="font-mono text-[10px] uppercase text-muted">{dayLabel(days[hover].day)}</p>
-          {runs && <p className="text-ink">{runs[hover].value} runs</p>}
-          {done && <p className="text-ink">{done[hover].value} tasks done</p>}
+          <p className="font-mono text-xs">{dayLabel(days[hover].day)}</p>
+          {runs && <p className="text-foreground">{runs[hover].value} runs</p>}
+          {done && <p className="text-foreground">{done[hover].value} tasks done</p>}
         </div>
       )}
-      <div className="mt-1 flex gap-4 text-[12px] text-body">
+      <div className="mt-2 flex gap-4 text-xs">
         {runs && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-[2px] bg-accent/60" /> Runs per day
+            <span className="inline-block size-2.5 rounded-sm bg-chart-1" /> Runs per day
           </span>
         )}
         {done && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-3 bg-info" /> Tasks completed per day
+            <span className="inline-block h-0.5 w-3 bg-chart-2" /> Tasks completed per day
           </span>
         )}
       </div>
@@ -134,7 +142,7 @@ export function ActivityChart({ runs, done }: { runs: DayPoint[] | null; done: D
   );
 }
 
-export function Sparkline({ values, color = "var(--color-accent)" }: { values: number[]; color?: string }) {
+export function Sparkline({ values, color = "var(--chart-1)" }: { values: number[]; color?: string }) {
   const W = 96;
   const H = 26;
   const max = Math.max(1, ...values);
@@ -142,7 +150,7 @@ export function Sparkline({ values, color = "var(--color-accent)" }: { values: n
   const pts = values.map((v, i) => `${i * step},${H - 2 - (v / max) * (H - 4)}`);
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden>
-      <polyline points={`0,${H} ${pts.join(" ")} ${W},${H}`} fill="color-mix(in srgb, var(--color-accent) 12%, transparent)" stroke="none" />
+      <polyline points={`0,${H} ${pts.join(" ")} ${W},${H}`} fill="color-mix(in oklab, var(--chart-1) 14%, transparent)" stroke="none" />
       <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );

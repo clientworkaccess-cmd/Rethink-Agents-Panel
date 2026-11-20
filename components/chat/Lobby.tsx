@@ -8,7 +8,7 @@ import { activityOf, isThinking, roleLabel, runFor } from "@/lib/agents";
 import { api } from "@/lib/client";
 import type { Agent, LiveRun, SessionsPayload } from "@/lib/types";
 import type { CrewApi, CrewMember } from "../character/CrewScene";
-import { Loading } from "../ui";
+import { Button, Loading, PageHeader, flyoutClass } from "../ui";
 
 const CrewScene = dynamic(() => import("../character/CrewScene"), { ssr: false, loading: () => <Loading label="Opening the lounge…" /> });
 
@@ -71,38 +71,45 @@ export default function Lobby({ agents, liveRuns }: { agents: Agent[]; liveRuns:
   const lastFor = last && last.agentId === picked ? last : null;
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
-      <div className={`relative z-10 px-6 pt-8 text-center transition-opacity duration-300 ${leaving ? "opacity-0" : ""}`}>
-        <p className="eyebrow">The lounge</p>
-        <h1 className="display mt-1 text-[36px]">Who would you like to talk to?</h1>
-        <p className="mt-1 text-caption text-body">Click someone to start a chat or pick up where you left off.</p>
-      </div>
-      <div className={`relative min-h-0 flex-1 transition-opacity duration-500 ${leaving ? "opacity-0" : ""}`} onClick={(e) => e.target === e.currentTarget && setPicked(null)}>
-        {agents.length > 0 ? (
-          <CrewScene members={members} decor="lounge" labels bubbles maxHeight={170} onPick={setPicked} apiRef={crew} />
-        ) : (
-          <p className="pt-20 text-center text-caption text-body">No agents yet.</p>
-        )}
-        {agent && !leaving && (
-          <div ref={bubble} className="absolute left-0 top-0 z-20 w-64" style={{ transform: "translate(-9999px,0)" }}>
-            <div className="pop-in relative rounded-sm border border-line bg-canvas p-4 text-center" role="dialog" aria-label={`Chat with ${agent.name}`}>
-              <p className="eyebrow">{roleLabel(agent) || "Agent"}</p>
-              <p className="display text-[22px]">Chat with me?</p>
-              <p className="mb-3 text-caption text-body">I&apos;m {agent.name}.</p>
-              <div className="flex flex-col gap-2">
-                <button onClick={() => enter(agent.id, "new")} className="btn btn-primary uppercase">
-                  Start new chat
-                </button>
-                {lastFor?.issueId && (
-                  <button onClick={() => enter(agent.id, lastFor.issueId!)} className="btn btn-outline">
-                    Continue last chat
-                  </button>
-                )}
+    <div className="flex h-full flex-col">
+      <PageHeader title="Chat" meta={`${agents.length} agents in the lounge`} />
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className={`relative z-10 flex flex-col gap-1 px-6 pt-8 text-center transition-opacity duration-(--motion-duration-slow) ${leaving ? "opacity-0" : ""}`}>
+          <h2 className="text-2xl font-normal text-foreground">Who would you like to talk to?</h2>
+          <p className="text-sm">Click someone to start a chat or pick up where you left off.</p>
+        </div>
+        <div
+          className={`relative min-h-0 flex-1 transition-opacity duration-(--motion-duration-slow) ${leaving ? "opacity-0" : ""}`}
+          onClick={(e) => e.target === e.currentTarget && setPicked(null)}
+        >
+          {agents.length > 0 ? (
+            <CrewScene members={members} decor="lounge" labels bubbles maxHeight={170} onPick={setPicked} apiRef={crew} />
+          ) : (
+            <p className="pt-20 text-center text-sm">No agents yet. They appear here as soon as Paperclip has them.</p>
+          )}
+          {agent && !leaving && (
+            <div ref={bubble} className="absolute left-0 top-0 z-20 w-hovercard" style={{ transform: "translate(-9999px,0)" }}>
+              <div className={`pop-in relative flex flex-col gap-3 p-4 text-center ${flyoutClass}`} role="dialog" aria-label={`Chat with ${agent.name}`}>
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs">{roleLabel(agent) || "Agent"}</p>
+                  <p className="text-sm font-semibold text-foreground">Chat with me?</p>
+                  <p className="text-xs">I&apos;m {agent.name}.</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button variant="primary" size="sm" onClick={() => enter(agent.id, "new")}>
+                    Start new chat
+                  </Button>
+                  {lastFor?.issueId && (
+                    <Button size="sm" onClick={() => enter(agent.id, lastFor.issueId!)}>
+                      Continue last chat
+                    </Button>
+                  )}
+                </div>
+                <span className="absolute -bottom-1.5 left-1/2 size-3 -translate-x-1/2 rotate-45 border-b border-r border-border bg-background" />
               </div>
-              <span className="absolute -bottom-[7px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-line bg-canvas" />
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

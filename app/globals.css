@@ -1,304 +1,447 @@
 @import "tailwindcss";
 
-/* Light theme = DESIGN.md tokens. Dark theme is derived (brief 02 §6) by overriding the same variables. */
+/*
+ * THE token layer (DESIGN.md: "Tokens are the only source of visual values").
+ * This file is the single source. Components use the Tailwind utilities generated from @theme below,
+ * or `var(--token)`; never hex, raw px or arbitrary values. Need a value that does not exist? Add a token here.
+ *
+ * Three parts:
+ *  1. Raw semantic tokens in :root / [data-theme="dark"] (NON-inline blocks, so they stay runtime-tunable).
+ *  2. Motion tokens in :root, collapsed to zero under prefers-reduced-motion.
+ *  3. @theme inline maps the colour tokens onto Tailwind's namespaces (bg-background, text-muted-foreground…)
+ *     with var() references only, so nothing colour-related is baked at build time. A second @theme block
+ *     holds the type ramp, radii and named geometry.
+ *
+ * Values marked (proposed) come from DESIGN.md's "Proposed color/typography foundation" or fill a value the
+ * document leaves open (listed in the design-refresh PR).
+ */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-@theme {
-  --color-canvas: #ffffff; /* Paper White */
-  --color-surface: #f6f6f6; /* Soft Snow */
-  --color-raised: #ffffff;
-  --color-line: #e0e0e0; /* Mist */
-  --color-line-strong: #a69ea7; /* Mauve Dust */
-  --color-ink: #272727; /* Graphite Ink: headings, primary text */
-  --color-body: #5d5d5d; /* Slate: body copy */
-  --color-muted: #707070; /* Fog, darkened from #858585 for WCAG AA on white and Soft Snow */
-  --color-accent: #7451f2; /* Iris Violet */
-  --color-accent-ink: #5952a1; /* Deep Iris: outlined actions */
-  --color-accent-soft: #efeafe;
-  --color-on-accent: #ffffff;
-  --color-info: #0072c6; /* Cobalt Info */
-  --color-info-bg: #d6e5ff; /* Powder Blue */
+/* ---------- 1. semantic colour tokens: light ---------- */
+:root {
+  --background: oklch(1 0 0); /* panes, lowest card, menus and popovers */
+  --background-alt: oklch(1 0 0); /* text inputs and search fields */
+  --foreground: oklch(0.145 0 0); /* headings, labels, emphasis */
+  --muted: oklch(0.97 0 0); /* sidebar, highest card surface, task-row hover */
+  --muted-alt: oklch(0.985 0 0); /* middle card surface (proposed) */
+  --muted-highlight: oklch(0.94 0 0); /* hover / selected backgrounds, tag chips */
+  --muted-foreground: oklch(0.51 0 0); /* default text, metadata (darkened from 0.556 for AA on --muted) */
+  --border: oklch(0 0 0 / 0.1); /* translucent on purpose: its shade follows the surface */
+  --input: oklch(0 0 0 / 0.14);
+  --control-border: oklch(0.88 0 0); /* opaque toolbar outline (DESIGN.md --design-page-control-border) */
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --destructive-soft: oklch(0.577 0.245 27.325 / 0.08);
+  --warning: oklch(0.555 0.163 48.998);
+  --warning-soft: oklch(0.769 0.188 70.08 / 0.14);
+  --ring: var(--foreground);
+  --focus-ring-stroke-width: 1px;
+  --focus-ring-halo-width: 3px;
+  --focus-ring-halo: oklch(0.145 0 0 / 0.2);
+  --pane-resize-highlight: oklch(0.708 0 0 / 0.5);
+  --shadow-flyout: 0 1px 2px oklch(0 0 0 / 0.06), 0 8px 24px oklch(0 0 0 / 0.08);
+  --preview-canvas: oklch(1 0 0); /* agent HTML previews always render on white */
 
-  /* functional status colours (dots, rings, small labels only) */
-  --color-st-working: #7451f2;
-  --color-st-idle: #8a8a8a;
-  --color-st-paused: #a69ea7;
-  --color-st-waiting: #0072c6;
-  --color-st-error: #c2410c;
+  /* human chat bubbles: blue with white text (DESIGN.md conversation rules) */
+  --bubble-human: oklch(0.546 0.215 262.881);
+  --bubble-human-foreground: oklch(1 0 0);
 
-  --font-serif: "Lustria", "DM Serif Display", Georgia, serif;
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Martian Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* status: one vocabulary for agents and tasks, used identically in dots, rows, rings and charts */
+  --status-working: oklch(0.6 0.16 152);
+  --status-waiting: oklch(0.7 0.17 60);
+  --status-idle: oklch(0.75 0 0);
+  --status-paused: oklch(0.58 0 0);
+  --status-error: var(--destructive);
+  --status-done: oklch(0.58 0.12 255);
 
-  --text-mono-sm: 11px;
-  --text-mono-sm--line-height: 1.2;
-  --text-mono-sm--letter-spacing: 0.22px;
-  --text-micro: 12px;
-  --text-micro--line-height: 1.4;
-  --text-caption: 14px;
-  --text-caption--line-height: 1.4;
-  --text-body: 16px;
-  --text-body--line-height: 1.6;
-  --text-subheading: 20px;
-  --text-subheading--line-height: 1.2;
-  --text-heading-sm: 32px;
-  --text-heading-sm--line-height: 1.2;
-  --text-heading: 36px;
-  --text-heading--line-height: 1.2;
+  /* charts (shadcn production chart tokens) */
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-grid: var(--border);
 
-  --radius-sm: 4px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
-  --radius-xl: 4px;
-  --radius-2xl: 4px;
-
-  --shadow-cta: rgba(0, 0, 0, 0.2) 0px 2px 4px 0px;
+  /* scene chrome: bubbles and name labels drawn by Pixi read these at runtime (lib/tokens.ts) */
+  --scene-bubble-bg: var(--background);
+  --scene-bubble-border: var(--control-border);
+  --scene-bubble-fg: var(--foreground);
+  --scene-label: var(--muted-foreground);
+  --scene-code: var(--status-working);
+  --scene-strip: var(--muted); /* backdrop behind the dashboard team strip */
 }
 
-/* Dark: deep, slightly violet-tinted near-black, raised surfaces one step lighter, soft borders,
-   off-white text, violet lifted so it stays readable. All text pairs checked for WCAG AA. */
+/* ---------- 1b. semantic colour tokens: dark (Paper dark-mode palette) ---------- */
 [data-theme="dark"] {
-  --color-canvas: #13111a;
-  --color-surface: #1b1824;
-  --color-raised: #221e2d;
-  --color-line: #322d3e;
-  --color-line-strong: #4d465c;
-  --color-ink: #f3f1f8;
-  --color-body: #cdc8d8;
-  --color-muted: #a29cb0;
-  --color-accent: #9d85ff;
-  --color-accent-ink: #b7a6ff;
-  --color-accent-soft: #2a2244;
-  --color-on-accent: #14111c;
-  --color-info: #7cb8ff;
-  --color-info-bg: #1b2a44;
-  --color-st-working: #9d85ff;
-  --color-st-idle: #8f8a9c;
-  --color-st-paused: #a69ea7;
-  --color-st-waiting: #7cb8ff;
-  --color-st-error: #ff8a65;
+  --background: oklch(0.218 0 0); /* Paper dark-color-background #1a1a1a */
+  --background-alt: oklch(0.145 0 0); /* Paper dark-color-background-alt */
+  --foreground: oklch(0.985 0 0);
+  --muted: oklch(0.25 0 0); /* (proposed) */
+  --muted-alt: oklch(0.235 0 0); /* (proposed) */
+  --muted-highlight: oklch(0.321 0 0); /* Paper dark-color-muted-highlight #333333 */
+  --muted-foreground: oklch(0.708 0 0); /* (proposed) */
+  --border: oklch(1 0 0 / 0.1);
+  --input: oklch(1 0 0 / 0.15);
+  --control-border: oklch(0.34 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.145 0 0);
+  --destructive-soft: oklch(0.704 0.191 22.216 / 0.14);
+  --warning: oklch(0.828 0.189 84.429);
+  --warning-soft: oklch(0.828 0.189 84.429 / 0.14);
+  --focus-ring-halo: oklch(0.985 0 0 / 0.2);
+  --pane-resize-highlight: oklch(0.556 0 0 / 0.6);
+  --shadow-flyout: 0 1px 2px oklch(0 0 0 / 0.4), 0 8px 24px oklch(0 0 0 / 0.36);
+  --status-working: oklch(0.72 0.17 152);
+  --status-waiting: oklch(0.8 0.16 75);
+  --status-idle: oklch(0.6 0 0);
+  --status-paused: oklch(0.5 0 0);
+  --status-done: oklch(0.7 0.12 255);
+  --chart-1: oklch(0.705 0.191 47.604);
+  --chart-2: oklch(0.696 0.17 162.48);
   color-scheme: dark;
 }
 
+/* ---------- 2. motion tokens (DESIGN.md "Motion tokens": :root, two tiers, the two house curves) ---------- */
+:root {
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 320ms;
+  --motion-duration-scene: 600ms; /* hand-off into a chat after a character hops / celebrates */
+  --motion-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-ease-emphasized: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  --motion-stagger: 25ms;
+
+  /* scoped tokens reference the primitives */
+  --motion-page-enter: var(--motion-duration-base);
+  --motion-flyout-enter: var(--motion-duration-fast);
+  --motion-pane-reveal: var(--motion-duration-base);
+  --motion-ease-pane-reveal: var(--motion-ease-standard);
+  --motion-pane-width-reset: var(--motion-duration-base);
+  --motion-chart-grow: var(--motion-duration-scene);
+  --motion-counter: 700ms;
+  --motion-shimmer: 1.6s;
+  --motion-dots: 1.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: 0ms;
+    --motion-duration-base: 0ms;
+    --motion-duration-slow: 0ms;
+    --motion-duration-scene: 0ms;
+    --motion-stagger: 0ms;
+    --motion-counter: 0ms;
+  }
+}
+
+/* ---------- 3. Tailwind namespaces ---------- */
+@theme inline {
+  --color-*: initial; /* no palette classes (bg-red-500…): semantic tokens only */
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-background: var(--background);
+  --color-background-alt: var(--background-alt);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-alt: var(--muted-alt);
+  --color-muted-highlight: var(--muted-highlight);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-control-border: var(--control-border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-ring: var(--ring);
+  --color-pane-resize: var(--pane-resize-highlight);
+  --color-preview-canvas: var(--preview-canvas);
+  --color-bubble-human: var(--bubble-human);
+  --color-bubble-human-foreground: var(--bubble-human-foreground);
+  --color-status-working: var(--status-working);
+  --color-status-waiting: var(--status-waiting);
+  --color-status-idle: var(--status-idle);
+  --color-status-paused: var(--status-paused);
+  --color-status-error: var(--status-error);
+  --color-status-done: var(--status-done);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-scene-strip: var(--scene-strip);
+
+  --shadow-flyout: var(--shadow-flyout);
+}
+
+/* Typography, radius and geometry: literal values, consumed as utilities (text-sm, rounded-lg, h-row…). */
+@theme {
+  /* Inter Variable for interface text; JetBrains Mono stands in for Paper Mono (not distributable). */
+  --font-sans: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif: initial;
+
+  /* size ramp: nano, xs, compact, sm, base, lg, xl, 2xl, 3xl */
+  --text-*: initial;
+  --text-nano: 10px;
+  --text-nano--line-height: 1.5;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-compact: 13px;
+  --text-compact--line-height: 18px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 28px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 36px;
+
+  /* only normal (400) and semibold (600); medium resolves to normal, bold to semibold */
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+
+  --tracking-label: 0.1em;
+  --leading-label: 1.5;
+
+  --radius-*: initial;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px; /* flyouts, cards, controls */
+  --radius-xl: 12px; /* chat bubbles */
+  --radius-full: 9999px;
+
+  /* named geometry (h-row, w-sidebar, max-w-chat …) */
+  --spacing-row: 44px; /* comfortable row */
+  --spacing-row-compact: 32px;
+  --spacing-control: 44px; /* toolbar controls */
+  --spacing-btn: 40px; /* default button */
+  --spacing-btn-sm: 32px; /* card / flyout actions */
+  --spacing-tab: 32px; /* standard tab item */
+  --spacing-tab-compact: 24px;
+  --spacing-header: 60px; /* page header */
+  --spacing-sidebar: 240px;
+  --spacing-rail: 56px; /* collapsed sidebar */
+  --spacing-aside: 320px; /* right pane default */
+  --spacing-aside-min: 260px;
+  --spacing-aside-wide: 500px; /* task detail pane */
+  --spacing-hovercard: 280px;
+  --spacing-flyout: 200px;
+  --spacing-bottomnav: 56px;
+  --spacing-icon: 16px;
+  --spacing-icon-sm: 12px;
+  --spacing-dot: 8px;
+  --spacing-strip: 190px; /* dashboard team strip height */
+  --spacing-avatar-stage: 104px; /* chat sidebar avatar stage */
+  --spacing-composer-max: 220px;
+  --spacing-feed-max: 300px;
+  --spacing-col-time: 96px; /* timestamp column */
+  --spacing-col-num: 72px; /* numeric column */
+  --spacing-col-person: 160px; /* assignee column */
+  --spacing-spark: 96px;
+  --spacing-chip: 240px; /* artifact chip */
+
+  --container-chat: 760px;
+  --container-page: 1200px;
+  --container-login: 380px;
+  --container-prose: 480px;
+  --container-bubble: 600px; /* human chat bubble max width */
+  --container-drawer: 70vw; /* artifact pane max width in the chat column */
+}
+
+/* ---------- base ---------- */
 html,
 body {
   height: 100%;
 }
 
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  background: var(--background);
+  color: var(--muted-foreground); /* most text is muted foreground; foreground is the emphasis */
   font-family: var(--font-sans);
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
   -webkit-font-smoothing: antialiased;
   transition:
-    background-color 200ms ease,
-    color 200ms ease;
+    background-color var(--motion-duration-base) var(--motion-ease-standard),
+    color var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  background: var(--muted-highlight);
+  color: var(--foreground);
 }
 
-/* Section eyebrow: Martian Mono 11px uppercase */
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.2;
-  letter-spacing: 0.22px;
+/* Focus: a 1px bright edge plus a 3px halo at 20%, shared by inputs, buttons and custom controls. */
+:where(a, button, input, textarea, select, summary, [tabindex], [role="separator"]):focus-visible {
+  outline: var(--focus-ring-stroke-width) solid var(--ring);
+  outline-offset: 0;
+  box-shadow: 0 0 0 calc(var(--focus-ring-stroke-width) + var(--focus-ring-halo-width)) var(--focus-ring-halo);
+}
+
+/* Touch devices: editable controls at least the base size, so Safari does not zoom on focus. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: var(--text-base);
+  }
+}
+
+/* Section and navigation group labels: sans / nano / normal / uppercase, 150% leading, 0.1em, muted at 60%. */
+.label-caps {
+  font-family: var(--font-sans);
+  font-size: var(--text-nano);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--leading-label);
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
-  color: var(--color-muted);
+  color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
 }
 
-/* Lustria headings with negative tracking */
-.display {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-  color: var(--color-ink);
+/* Thin scrollbars that show on hover/scroll (CSS-only approximation of scrollbar-while-scrolling). */
+.scroll-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.scroll-quiet:hover,
+.scroll-quiet:focus-within {
+  scrollbar-color: var(--muted-highlight) transparent;
 }
 
-/* Dotted grid texture (DESIGN.md signature surface) */
-.dotgrid {
-  background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
-  background-size: 20px 20px;
+/* Shimmer: only the current activity owns it ("Working", the live progress line). Solid under reduced motion. */
+.shimmer {
+  background: linear-gradient(
+      90deg,
+      var(--muted-foreground) 0%,
+      var(--muted-foreground) 40%,
+      var(--foreground) 50%,
+      var(--muted-foreground) 60%,
+      var(--muted-foreground) 100%
+    )
+    0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer var(--motion-shimmer) linear infinite;
 }
 
-/* Buttons: one filled violet (with the system's single shadow), one outlined. */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 4px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.24px;
-  transition:
-    transform 120ms ease,
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease,
-    opacity 150ms ease;
-  cursor: pointer;
-  user-select: none;
-}
-.btn:active:not(:disabled) {
-  transform: translateY(1px) scale(0.98);
-}
-.btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.btn-primary {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  box-shadow: var(--shadow-cta);
-}
-.btn-primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 88%, black);
-}
-.btn-outline {
-  border: 1px solid var(--color-line-strong);
-  color: var(--color-ink);
-  background: transparent;
-  font-weight: 500;
-}
-.btn-outline:hover:not(:disabled) {
-  border-color: var(--color-accent-ink);
-  color: var(--color-accent-ink);
-}
-.btn-ghost {
-  color: var(--color-body);
-  font-weight: 500;
-}
-.btn-ghost:hover:not(:disabled) {
-  color: var(--color-accent);
-}
-
-.card-hover {
-  transition:
-    border-color 150ms ease,
-    transform 150ms ease;
-}
-.card-hover:hover {
-  border-color: var(--color-line-strong);
-}
-.card-hover:active {
-  transform: scale(0.995);
-}
-
-/* Markdown (agent replies, documents) */
+/* ---------- Markdown: conversation scale 14/20; headings stay 14px semibold in foreground ---------- */
 .md {
-  font-size: 15px;
-  line-height: 1.65;
-  color: var(--color-ink);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--foreground);
   overflow-wrap: anywhere;
 }
 .md > * + * {
-  margin-top: 10px;
+  margin-top: calc(var(--spacing) * 3);
 }
 .md h1,
 .md h2,
 .md h3,
 .md h4 {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  margin-top: 18px;
-}
-.md h1 {
-  font-size: 24px;
-}
-.md h2 {
-  font-size: 20px;
-}
-.md h3,
-.md h4 {
-  font-size: 17px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
+  margin-top: calc(var(--spacing) * 5);
 }
 .md > :first-child {
   margin-top: 0;
 }
 .md strong {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .md a {
-  color: var(--color-accent);
+  color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .md ul {
   list-style: disc;
-  padding-left: 20px;
+  padding-left: calc(var(--spacing) * 5);
 }
 .md ol {
   list-style: decimal;
-  padding-left: 20px;
+  padding-left: calc(var(--spacing) * 5);
 }
 .md li + li {
-  margin-top: 2px;
+  margin-top: calc(var(--spacing) * 0.5);
 }
 .md code {
   font-family: var(--font-mono);
-  font-size: 12.5px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  border-radius: 4px;
-  padding: 1px 4px;
+  font-size: var(--text-xs);
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--spacing);
 }
 .md pre {
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  border-radius: 4px;
-  padding: 12px;
+  background: var(--muted);
+  border-radius: var(--radius-lg);
+  padding: calc(var(--spacing) * 3);
   overflow-x: auto;
 }
 .md pre code {
   background: none;
-  border: 0;
   padding: 0;
 }
 .md blockquote {
-  border-left: 2px solid var(--color-accent);
-  padding-left: 12px;
-  color: var(--color-body);
+  border-left: 2px solid var(--border);
+  padding-left: calc(var(--spacing) * 3);
+  color: var(--muted-foreground);
 }
 .md table {
   border-collapse: collapse;
   display: block;
   overflow-x: auto;
   max-width: 100%;
-  font-size: 14px;
 }
 .md th,
 .md td {
-  border-bottom: 1px solid var(--color-line);
-  padding: 6px 16px 6px 0;
+  border-bottom: 1px solid var(--border);
+  padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 4) calc(var(--spacing) * 1.5) 0;
   text-align: left;
 }
 .md th {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0.22px;
-  text-transform: uppercase;
-  color: var(--color-muted);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
 }
 .md hr {
   border: 0;
-  border-top: 1px solid var(--color-line);
+  border-top: 1px solid var(--border);
+}
+/* standalone documents (artifact drawer) keep their own scale: "standalone Markdown retains its existing scale" */
+.md-doc {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+.md-doc h1 {
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl--line-height);
+}
+.md-doc h2 {
+  font-size: var(--text-xl);
+  line-height: var(--text-xl--line-height);
+}
+.md-doc h3,
+.md-doc h4 {
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
 }
 
 /* ---------- motion ---------- */
-@keyframes fade-up {
+@keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -316,7 +459,7 @@ body {
 @keyframes pop-in {
   0% {
     opacity: 0;
-    transform: scale(0.92) translateY(4px);
+    transform: scale(0.96) translateY(4px);
   }
   100% {
     opacity: 1;
@@ -325,12 +468,20 @@ body {
 }
 @keyframes slide-in-right {
   from {
-    transform: translateX(28px);
+    transform: translateX(24px);
     opacity: 0;
   }
   to {
     transform: none;
     opacity: 1;
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
   }
 }
 @keyframes pulse-dot {
@@ -370,42 +521,33 @@ body {
     transform: rotate(-40deg);
   }
 }
-@keyframes ticker-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 
 .page-enter {
-  animation: fade-up 220ms ease-out both;
+  animation: page-enter var(--motion-page-enter) var(--motion-ease-standard) both;
 }
 .fade-in {
-  animation: fade-in 200ms ease-out both;
+  animation: fade-in var(--motion-duration-base) var(--motion-ease-standard) both;
 }
 .pop-in {
   transform-origin: 50% 100%;
-  animation: pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  animation: pop-in var(--motion-flyout-enter) var(--motion-ease-emphasized) both;
 }
 .slide-in-right {
-  animation: slide-in-right 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: slide-in-right var(--motion-pane-reveal) var(--motion-ease-pane-reveal) both;
 }
 .ticker-in {
-  animation: ticker-in 250ms ease-out both;
+  animation: page-enter var(--motion-duration-base) var(--motion-ease-standard) both;
 }
 .dots span {
-  animation: pulse-dot 1.2s ease-in-out infinite;
+  animation: pulse-dot var(--motion-dots) ease-in-out infinite;
 }
 .dots span:nth-child(2) {
-  animation-delay: 0.2s;
+  animation-delay: calc(var(--motion-dots) / 6);
 }
 .dots span:nth-child(3) {
-  animation-delay: 0.4s;
+  animation-delay: calc(var(--motion-dots) / 3);
 }
+/* character art animation (unchanged from V2) */
 .critter-bob {
   animation: critter-bob 1.8s ease-in-out infinite;
 }
@@ -423,7 +565,7 @@ body {
   animation: critter-wave 0.5s ease-in-out infinite;
 }
 
-/* Respect reduced motion: no transitions; critters keep only their blink. */
+/* Reduced motion: no transitions; critters keep only their blink; shimmer becomes solid text. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -441,5 +583,10 @@ body {
   .critter-wave,
   .dots span {
     animation: none !important;
+  }
+  .shimmer {
+    animation: none;
+    background: none;
+    color: var(--foreground);
   }
 }

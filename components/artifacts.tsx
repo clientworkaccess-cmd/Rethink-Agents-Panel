@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, formatBytes, timeAgo } from "@/lib/client";
 import type { Artifact } from "@/lib/types";
-import { Loading, Markdown, Notice } from "./ui";
+import { EmptyState, Icon, IconButton, Loading, Markdown, Mono, buttonClass, cardClass, cx } from "./ui";
 
 type Kind = "markdown" | "html" | "image" | "pdf" | "file";
 
@@ -63,23 +63,18 @@ export function ArtifactChip({ artifact, active, onOpen }: { artifact: Artifact;
   return (
     <button
       onClick={() => onOpen(artifact)}
-      className={`card-hover group inline-flex w-[240px] max-w-full items-center gap-3 rounded-sm border bg-canvas p-2.5 text-left ${
-        active ? "border-accent" : "border-line"
-      }`}
+      aria-pressed={active}
+      className={cardClass("default", true, cx("inline-flex w-chip max-w-full items-center gap-3 p-2", active && "border-foreground"))}
     >
-      <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border transition-colors ${
-          active ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-body group-hover:text-accent"
-        }`}
-      >
+      <span className="flex size-btn-sm shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <KindIcon kind={kind} />
       </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[14px] font-medium text-ink">{artifact.title}</span>
-        <span className="block font-mono text-[10px] uppercase tracking-[0.22px] text-muted">
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-sm text-foreground">{artifact.title}</span>
+        <Mono className="truncate">
           {fileLabel(artifact)}
           {artifact.size !== null && ` · ${formatBytes(artifact.size)}`}
-        </span>
+        </Mono>
       </span>
     </button>
   );
@@ -115,7 +110,7 @@ function ArtifactBody({ artifact }: { artifact: Artifact }) {
 
   if (failed)
     return (
-      <Notice
+      <EmptyState
         mood="error"
         title="Could not load this artifact"
         text="Paperclip may not be reachable right now."
@@ -128,20 +123,23 @@ function ArtifactBody({ artifact }: { artifact: Artifact }) {
 
   if (kind === "image")
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={contentUrl(artifact)} alt={artifact.title} className="mx-auto max-h-full max-w-full rounded-sm" />;
-  if (kind === "pdf") return <iframe title={artifact.title} src={contentUrl(artifact)} className="h-full w-full rounded-sm border border-line" />;
+    return <img src={contentUrl(artifact)} alt={artifact.title} className="mx-auto max-h-full max-w-full rounded-lg" />;
+  if (kind === "pdf") return <iframe title={artifact.title} src={contentUrl(artifact)} className="h-full w-full rounded-lg border border-border" />;
   if (kind === "file")
     return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-sm border border-line bg-surface text-body">
+      <div className="flex flex-col items-center gap-5 py-16 text-center">
+        <span className="flex size-12 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <KindIcon kind="file" size={20} />
         </span>
-        <p className="display text-[20px]">{artifact.title}</p>
-        <p className="text-caption text-body">
-          {fileLabel(artifact)}
-          {artifact.size !== null && ` · ${formatBytes(artifact.size)}`} · no preview for this file type
-        </p>
-        <a href={downloadUrl(artifact)} className="btn btn-primary uppercase">
+        <div className="flex flex-col gap-1">
+          <p className="text-base font-semibold text-foreground">{artifact.title}</p>
+          <p className="text-sm">
+            {fileLabel(artifact)}
+            {artifact.size !== null && ` · ${formatBytes(artifact.size)}`} · no preview for this file type
+          </p>
+        </div>
+        <a href={downloadUrl(artifact)} className={buttonClass("primary")}>
+          <Icon name="download" />
           Download
         </a>
       </div>
@@ -150,18 +148,19 @@ function ArtifactBody({ artifact }: { artifact: Artifact }) {
   if (kind === "html")
     return (
       // Untrusted agent HTML: scripts may run, but never with the panel's origin (no allow-same-origin).
-      <iframe title={artifact.title} sandbox="allow-scripts" srcDoc={text} className="h-full w-full rounded-sm border border-line bg-white" />
+      <iframe title={artifact.title} sandbox="allow-scripts" srcDoc={text} className="h-full w-full rounded-lg border border-border bg-preview-canvas" />
     );
   return (
-    <div className="mx-auto max-w-[760px] px-2 pb-8">
-      <Markdown>{text}</Markdown>
+    <div className="mx-auto max-w-chat px-2 pb-8">
+      <Markdown doc>{text}</Markdown>
     </div>
   );
 }
 
 /**
- * The drawer. `column` sits in the page flow (Chat's right column); `overlay` slides over the page (Dashboard).
- * Slides in from the right, resizable from its left edge, expands to full width, closes smoothly.
+ * The drawer (the shell's contextual right pane). `column` sits in the page flow (Chat's right column);
+ * `overlay` slides over the page (Dashboard). Both are positioned inside a `relative` page container, so
+ * "expand" fills the main pane and keeps the left navigation. Resizable from its left edge; closes smoothly.
  */
 export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact; onClose: () => void; mode: "column" | "overlay" }) {
   const [width, setWidth] = useState(() => (typeof window === "undefined" ? 560 : Math.round(Math.min(600, Math.max(340, window.innerWidth * (mode === "column" ? 0.42 : 0.6))))));
@@ -172,7 +171,7 @@ export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact
 
   const close = useCallback(() => {
     setClosing(true);
-    setTimeout(onClose, 180);
+    setTimeout(onClose, 180); // matches --motion-duration-base
   }, [onClose]);
 
   useEffect(() => {
@@ -197,17 +196,19 @@ export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact
   }, [close]);
 
   const placement = expanded
-    ? "fixed inset-x-0 bottom-0 top-14 z-30"
+    ? "absolute inset-0 z-30"
     : mode === "overlay"
-      ? "fixed bottom-0 right-0 top-14 z-30 max-w-full"
-      : "relative h-full shrink-0 max-w-[70vw]";
+      ? "absolute inset-y-0 right-0 z-30 max-w-full shadow-flyout"
+      : "relative h-full shrink-0 max-w-drawer";
 
   return (
     <aside
       key={artifact.id}
-      className={`${placement} slide-in-right flex flex-col border-l border-line bg-canvas transition-[opacity,transform] duration-200 ${
-        closing ? "translate-x-6 opacity-0" : ""
-      }`}
+      className={cx(
+        placement,
+        "slide-in-right flex flex-col border-l border-border bg-background transition-[opacity,transform] duration-(--motion-duration-base)",
+        closing && "translate-x-6 opacity-0",
+      )}
       style={expanded ? undefined : { width }}
       aria-label="Artifact"
     >
@@ -215,49 +216,41 @@ export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact
         <div
           role="separator"
           aria-orientation="vertical"
+          aria-label="Resize the artifact pane"
           title="Drag to resize"
           onPointerDown={(e) => {
             drag.current = { x: e.clientX, w: width };
             document.body.style.userSelect = "none";
           }}
-          className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-accent/20"
+          className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors duration-(--motion-duration-fast) hover:bg-pane-resize"
         />
       )}
-      <div className="flex items-center gap-3 border-b border-line px-4 py-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-line bg-surface text-accent">
+      <div className="flex h-header shrink-0 items-center gap-3 border-b border-border px-4">
+        <span className="flex size-btn-sm shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <KindIcon kind={kind} />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-medium text-ink">{artifact.title}</p>
-          <p className="truncate font-mono text-[10px] uppercase tracking-[0.22px] text-muted">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <p className="truncate text-sm font-semibold text-foreground">{artifact.title}</p>
+          <Mono className="truncate">
             {fileLabel(artifact)}
             {artifact.agentName && ` · ${artifact.agentName}`}
             {artifact.updatedAt && ` · ${timeAgo(artifact.updatedAt)}`}
-          </p>
+          </Mono>
         </div>
-        <a href={downloadUrl(artifact)} className="btn btn-outline">
-          Download
+        <a href={downloadUrl(artifact)} className={buttonClass("secondary", "sm")}>
+          <Icon name="download" className="size-icon-sm" />
+          <span className="hidden sm:inline">Download</span>
         </a>
         <IconButton label={expanded ? "Restore width" : "Expand to full width"} onClick={() => setExpanded((v) => !v)}>
-          {expanded ? <path d="M6 2v4H2M10 14v-4h4" /> : <path d="M2 6V2h4M14 10v4h-4" />}
+          <Icon name={expanded ? "restore" : "expand"} />
         </IconButton>
         <IconButton label="Close" onClick={close}>
-          <path d="m4 4 8 8M12 4l-8 8" />
+          <Icon name="close" />
         </IconButton>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+      <div className="scroll-quiet min-h-0 flex-1 overflow-auto p-4">
         <ArtifactBody key={artifact.id} artifact={artifact} />
       </div>
     </aside>
-  );
-}
-
-function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} title={label} aria-label={label} className="rounded-sm p-1.5 text-body transition-colors hover:bg-surface hover:text-accent">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-        {children}
-      </svg>
-    </button>
   );
 }

@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
-import "@fontsource/lustria/400.css";
-import "@fontsource/dm-sans/400.css";
-import "@fontsource/dm-sans/500.css";
-import "@fontsource/dm-sans/600.css";
-import "@fontsource/dm-sans/700.css";
-import "@fontsource/martian-mono/400.css";
-import "@fontsource/martian-mono/500.css";
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
 import "./globals.css";
 
 export const metadata: Metadata = {

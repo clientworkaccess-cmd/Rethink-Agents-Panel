@@ -21,26 +21,15 @@ export const ACTIVITY_LABEL: Record<Activity, string> = {
   hidden: "Terminated",
 };
 
-/** CSS colour per activity (functional status colours only). */
+/** CSS colour per activity: the shared status tokens (app/globals.css). Pixi reads the same tokens via lib/tokens.ts. */
 export const ACTIVITY_COLOR: Record<Activity, string> = {
-  working: "var(--color-st-working)",
-  idle: "var(--color-st-idle)",
-  paused: "var(--color-st-paused)",
-  pending: "var(--color-st-waiting)",
-  error: "var(--color-st-error)",
-  hidden: "var(--color-st-idle)",
+  working: "var(--status-working)",
+  idle: "var(--status-idle)",
+  paused: "var(--status-paused)",
+  pending: "var(--status-waiting)",
+  error: "var(--status-error)",
+  hidden: "var(--status-idle)",
 };
-
-export const ACTIVITY_HEX: Record<Activity, number> = {
-  working: 0x7451f2,
-  idle: 0x8a8a8a,
-  paused: 0xa69ea7,
-  pending: 0x0072c6,
-  error: 0xc2410c,
-  hidden: 0x8a8a8a,
-};
-
-export const hexCss = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
 
 export function runFor(agentId: string, runs: LiveRun[]): LiveRun | undefined {
   return runs.find((r) => r.agentId === agentId);

@@ -4,11 +4,12 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ACTIVITY_COLOR, ACTIVITY_LABEL, activityOf, roleLabel, runFor } from "@/lib/agents";
-import { api, isUnreachable, timeAgo, usePoll } from "@/lib/client";
+import { activityOf, roleLabel, runFor } from "@/lib/agents";
+import { api, isUnreachable, usePoll } from "@/lib/client";
 import { setSoundEnabled, soundEnabled, sounds } from "@/lib/sound";
 import type { Activity, ActivityEvent, AgentsPayload } from "@/lib/types";
-import { Loading, StatusDot, Unreachable } from "../ui";
+import { ActivityList } from "../lists";
+import { ActivityStatus, Button, Icon, IconButton, InlineNotice, Loading, PageHeader, SectionLabel, Unreachable, flyoutClass } from "../ui";
 import type { OfficeApi } from "./OfficeScene";
 
 // PixiJS lives in its own chunk and only loads when this tab opens.
@@ -132,90 +133,88 @@ export default function Office() {
   const pickedAct = picked ? activityOf(picked, data.liveRuns) : null;
   const pickedTask = picked ? runFor(picked.id, data.liveRuns)?.issueTitle : null;
   const working = visible.filter((a) => activityOf(a, data.liveRuns) === "working").length;
+  const waiting = visible.filter((a) => activityOf(a, data.liveRuns) === "pending").length;
 
   return (
-    <div className={`relative h-full overflow-hidden bg-surface transition-opacity duration-300 ${leaving ? "opacity-0" : ""}`}>
-      <OfficeScene agents={data.agents} liveRuns={data.liveRuns} onSelect={onSelect} onEvent={onEvent} apiRef={sceneApi} />
-
-      <div className="pointer-events-none absolute left-4 top-4 sm:left-6">
-        <p className="eyebrow">Live office</p>
-        <h1 className="display text-[28px]">Office</h1>
-        <p className="text-caption text-body">
-          {working} working · {visible.length} agents
-          {unreachable && " · Paperclip is not reachable, showing the last state"}
-        </p>
-      </div>
-
-      <div className="absolute right-4 top-4 flex gap-2 sm:right-6">
-        <button onClick={() => sceneApi.current?.resetView()} className="btn btn-outline bg-canvas" title="Fit the whole office">
-          Reset view
-        </button>
-        <button
-          onClick={toggleSound}
-          aria-pressed={sound}
-          className="btn btn-outline bg-canvas px-2"
-          title={sound ? "Sound on" : "Sound off"}
-          aria-label={sound ? "Turn sound off" : "Turn sound on"}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z" />
-            {sound ? <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" /> : <path d="m16 9.5 5 5M21 9.5l-5 5" />}
-          </svg>
-        </button>
-      </div>
-
-      {visible.length === 0 && (
-        <p className="absolute inset-x-0 bottom-24 text-center text-caption text-body">No agents yet. New agents get a desk automatically.</p>
-      )}
-
-      {picked && pickedAct && (
-        <div ref={pop} className="absolute left-0 top-0 z-20 w-72" style={{ transform: "translate(-9999px,0)" }}>
-          <div className="pop-in relative rounded-sm border border-line bg-canvas p-4" role="dialog" aria-label={picked.name}>
-            <button
-              onClick={() => setSelected(null)}
-              aria-label="Close"
-              className="absolute right-2 top-2 rounded-sm p-1 text-muted transition-colors hover:text-ink"
+    <div className={`flex h-full flex-col transition-opacity duration-(--motion-duration-slow) ${leaving ? "opacity-0" : ""}`}>
+      <PageHeader
+        title="Office"
+        meta={
+          <>
+            {working} working · {waiting > 0 ? `${waiting} waiting for you · ` : ""}
+            {visible.length} agents
+          </>
+        }
+        actions={
+          <>
+            <Button onClick={() => sceneApi.current?.resetView()} title="Fit the whole office">
+              <Icon name="fit" />
+              <span className="hidden sm:inline">Reset view</span>
+            </Button>
+            <IconButton
+              variant="secondary"
+              size="icon"
+              onClick={toggleSound}
+              aria-pressed={sound}
+              label={sound ? "Turn sound off" : "Turn sound on"}
             >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <path d="m4 4 8 8M12 4l-8 8" />
-              </svg>
-            </button>
-            <p className="eyebrow">{roleLabel(picked) || "Agent"}</p>
-            <p className="display text-[22px]">{picked.name}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-caption" style={{ color: ACTIVITY_COLOR[pickedAct] }}>
-              <StatusDot activity={pickedAct} size={7} />
-              {ACTIVITY_LABEL[pickedAct]}
-            </p>
-            <p className="mt-1 text-caption text-body">{pickedTask ? `Working on: ${pickedTask}` : "No task running right now."}</p>
-            <div className="mt-3 flex gap-2">
-              <button onClick={() => goChat(picked.id)} className="btn btn-primary flex-1 uppercase">
-                Chat
-              </button>
-              <button
-                onClick={() => router.push(`/dashboard?agent=${encodeURIComponent(picked.id)}`)}
-                className="btn btn-outline flex-1"
-              >
-                See tasks
-              </button>
-            </div>
-            <span className="absolute -bottom-[7px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-line bg-canvas" />
-          </div>
-        </div>
-      )}
+              <Icon name={sound ? "soundOn" : "soundOff"} />
+            </IconButton>
+          </>
+        }
+      />
 
-      {ticks.length > 0 && (
-        <div className="absolute bottom-4 left-4 w-[min(360px,calc(100%-32px))] rounded-sm border border-line bg-canvas/95 p-3 sm:left-6" aria-live="polite">
-          <p className="eyebrow mb-1.5">Activity</p>
-          <ul className="flex flex-col gap-1">
-            {ticks.slice(0, 4).map((t) => (
-              <li key={t.id} className="ticker-in flex items-baseline gap-2 text-[13px] leading-snug">
-                <span className="min-w-0 flex-1 truncate text-ink">{t.text}</span>
-                <span className="shrink-0 font-mono text-[10px] text-muted">{timeAgo(t.at)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-muted">
+        <OfficeScene agents={data.agents} liveRuns={data.liveRuns} onSelect={onSelect} onEvent={onEvent} apiRef={sceneApi} />
+
+        {unreachable && (
+          <InlineNotice tone="warning" className="absolute left-4 right-4 top-4 sm:right-auto">
+            Paperclip is not reachable. Showing the last state.
+          </InlineNotice>
+        )}
+
+        {visible.length === 0 && (
+          <p className="absolute inset-x-0 bottom-24 text-center text-sm">No agents yet. New agents get a desk automatically.</p>
+        )}
+
+        {picked && pickedAct && (
+          <div ref={pop} className="absolute left-0 top-0 z-20 w-hovercard" style={{ transform: "translate(-9999px,0)" }}>
+            <div className={`pop-in relative flex flex-col gap-3 p-4 ${flyoutClass}`} role="dialog" aria-label={picked.name}>
+              <IconButton label="Close" onClick={() => setSelected(null)} className="absolute right-2 top-2">
+                <Icon name="close" className="size-icon-sm" />
+              </IconButton>
+              <div className="flex flex-col gap-1 pr-8">
+                <div className="flex items-center gap-2 text-xs">
+                  <ActivityStatus activity={pickedAct} />
+                  {roleLabel(picked) && <span>· {roleLabel(picked)}</span>}
+                </div>
+                <p className="text-sm font-semibold text-foreground">{picked.name}</p>
+                <p className="line-clamp-3 text-xs">{pickedTask ? `Working on: ${pickedTask}` : "No task running right now."}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="primary" size="sm" onClick={() => goChat(picked.id)} className="flex-1">
+                  Chat
+                </Button>
+                <Button size="sm" onClick={() => router.push(`/dashboard?agent=${encodeURIComponent(picked.id)}`)} className="flex-1">
+                  See tasks
+                </Button>
+              </div>
+              <span className="absolute -bottom-1.5 left-1/2 size-3 -translate-x-1/2 rotate-45 border-b border-r border-border bg-background" />
+            </div>
+          </div>
+        )}
+
+        {ticks.length > 0 && (
+          <div className={`absolute bottom-4 left-4 right-4 py-2 sm:right-auto sm:w-aside ${flyoutClass}`} aria-live="polite">
+            <SectionLabel className="px-3 pb-1">Activity</SectionLabel>
+            <ActivityList
+              label="Recent activity"
+              density="compact"
+              items={ticks.slice(0, 4).map((t) => ({ id: t.id, text: t.text, at: t.at, agent: data.agents.find((a) => a.id === t.agentId) ?? null }))}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

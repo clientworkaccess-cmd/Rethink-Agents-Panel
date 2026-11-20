@@ -4,7 +4,8 @@ import { useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api, isUnreachable, usePoll } from "@/lib/client";
 import type { AgentsPayload } from "@/lib/types";
-import { Loading, Notice, Unreachable } from "../ui";
+import Link from "next/link";
+import { EmptyState, Loading, Unreachable, buttonClass } from "../ui";
 import ChatView from "./ChatView";
 import Lobby from "./Lobby";
 
@@ -29,6 +30,18 @@ export default function Chat() {
   const agentId = params.get("agent");
   if (!agentId) return <Lobby agents={agents} liveRuns={data.liveRuns} />;
   const agent = agents.find((a) => a.id === agentId);
-  if (!agent) return <Notice title="This agent is not here" text="It may have been removed. Pick someone from the lounge." mood="error" />;
+  if (!agent)
+    return (
+      <EmptyState
+        title="This agent is not here"
+        text="It may have been removed. Pick someone from the lounge."
+        mood="error"
+        action={
+          <Link href="/chat" className={buttonClass("secondary")}>
+            Back to the lounge
+          </Link>
+        }
+      />
+    );
   return <ChatView key={agent.id} agent={agent} agents={agents} liveRuns={data.liveRuns} sessionParam={params.get("session")} />;
 }

@@ -5,13 +5,14 @@
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ACTIVITY_COLOR, ACTIVITY_LABEL, activityOf, isThinking, roleLabel, runFor } from "@/lib/agents";
+import { activityOf, isThinking, roleLabel, runFor } from "@/lib/agents";
 import { api, isUnreachable, timeAgo, usePoll } from "@/lib/client";
 import type { AgentsPayload, Artifact, Issue, Metrics } from "@/lib/types";
 import { ArtifactChip, ArtifactDrawer } from "../artifacts";
 import type { CrewMember } from "../character/CrewScene";
 import Critter from "../character/Critter";
-import { Loading, StatusDot, StatusPill, Unreachable, statusText } from "../ui";
+import { ActivityList, TaskListHeader, TaskRow } from "../lists";
+import { ActivityStatus, Button, Card, EmptyState, InlineNotice, Loading, Mono, PageHeader, Segmented, Select, SectionLabel, Unreachable, statusText } from "../ui";
 import { ActivityChart, Counter, Sparkline } from "./charts";
 import TaskPanel from "./TaskPanel";
 
@@ -88,200 +89,205 @@ export default function Dashboard() {
     [router],
   );
   const closeArtifact = useCallback(() => setOpenArtifact(null), []);
-  const nameOf = (id: string | null) => agents.find((a) => a.id === id)?.name ?? "Unassigned";
 
   if (unreachable && !data) return <Unreachable onRetry={loadAgents} />;
   if (!data) return <Loading label="Counting things…" />;
 
   const m = metrics;
   const usage = m?.usageThisMonth;
+  const waiting = members.filter((x) => x.activity === "pending").length;
+  const errors = members.filter((x) => x.activity === "error").length;
+  const working = members.filter((x) => x.activity === "working").length;
 
   return (
-    <div className="h-full overflow-y-auto">
-      <main className="mx-auto flex max-w-[1200px] flex-col gap-10 px-4 py-8 sm:px-6">
-        {unreachable && <p className="rounded-sm border border-line px-4 py-2 text-caption text-body">Paperclip is not reachable. Showing the last data we had.</p>}
+    <div className="relative flex h-full flex-col">
+      <PageHeader
+        title="Dashboard"
+        meta={
+          <>
+            {working} working
+            {waiting > 0 && ` · ${waiting} waiting for you`}
+            {errors > 0 && ` · ${errors} with errors`}
+            {` · ${agents.length} agents`}
+          </>
+        }
+      />
+      <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto">
+        <main className="mx-auto flex max-w-page flex-col gap-8 px-4 py-6 sm:px-6">
+          {unreachable && <InlineNotice tone="warning">Paperclip is not reachable. Showing the last data we had.</InlineNotice>}
 
-        <header>
-          <p className="eyebrow">Overview</p>
-          <h1 className="display text-[36px]">Dashboard</h1>
-        </header>
-
-        {/* key numbers */}
-        <section aria-label="Key numbers" className="grid grid-cols-2 overflow-hidden rounded-sm border-l border-t border-line md:grid-cols-3 xl:grid-cols-5">
-          <Kpi label="Agents now">
-            {m?.agents ? (
-              <>
-                <Big>
-                  <Counter value={m.agents.working} />
-                </Big>
-                <Sub>
-                  working · {m.agents.idle} idle · <span className={m.agents.errors ? "text-st-error" : ""}>{m.agents.errors} with errors</span>
-                </Sub>
-              </>
-            ) : (
-              <Missing />
-            )}
-          </Kpi>
-          <Kpi label="Tasks">
-            {m?.tasks ? (
-              <>
-                <Big>
-                  <Counter value={m.tasks.open} />
-                </Big>
-                <Sub>open · {m.tasks.doneLast7d} done in 7 days</Sub>
-              </>
-            ) : (
-              <Missing />
-            )}
-          </Kpi>
-          <Kpi label="Runs today">
-            {m?.runsToday ? (
-              <>
-                <Big>
-                  <Counter value={m.runsToday.total} />
-                </Big>
-                <Sub>
-                  {m.runsToday.succeeded} succeeded · <span className={m.runsToday.failed ? "text-st-error" : ""}>{m.runsToday.failed} failed</span>
-                </Sub>
-              </>
-            ) : (
-              <Missing />
-            )}
-          </Kpi>
-          <Kpi label="Artifacts this week">
-            {m?.artifactsThisWeek !== null && m?.artifactsThisWeek !== undefined ? (
-              <>
-                <Big>
-                  <Counter value={m.artifactsThisWeek} />
-                </Big>
-                <Sub>documents and files</Sub>
-              </>
-            ) : (
-              <Missing />
-            )}
-          </Kpi>
-          {/* cost when it is billed; tokens when the cost is 0 (subscription); hidden when neither exists */}
-          {usage && (
-            <Kpi label={usage.costCents ? "Cost this month" : "Tokens this month"}>
-              {usage.costCents ? (
+          {/* key numbers */}
+          <section aria-label="Key numbers" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <Kpi label="Agents now">
+              {m?.agents ? (
                 <>
                   <Big>
-                    <Counter value={usage.costCents / 100} format={(n) => `$${n.toFixed(2)}`} />
+                    <Counter value={m.agents.working} />
                   </Big>
-                  <Sub>{usage.tokens ? `${compact(usage.tokens)} tokens` : "from Paperclip costs"}</Sub>
+                  <Sub>
+                    working · {m.agents.idle} idle · <span className={m.agents.errors ? "text-destructive" : ""}>{m.agents.errors} with errors</span>
+                  </Sub>
                 </>
               ) : (
-                <>
-                  <Big>
-                    <Counter value={usage.tokens ?? 0} format={compact} />
-                  </Big>
-                  <Sub>cost shows $0 on the subscription</Sub>
-                </>
+                <Missing />
               )}
             </Kpi>
-          )}
-        </section>
-
-        {/* team strip */}
-        <section aria-label="Team">
-          <SectionHead eyebrow="The team" title="Who is doing what" />
-          <div className="dotgrid relative h-[190px] overflow-hidden rounded-sm border border-line">
-            {agents.length ? (
-              <CrewScene members={members} labels rings maxHeight={120} bubbleWords={3} onPick={pickAgent} />
-            ) : (
-              <p className="pt-16 text-center text-caption text-body">No agents yet.</p>
+            <Kpi label="Tasks">
+              {m?.tasks ? (
+                <>
+                  <Big>
+                    <Counter value={m.tasks.open} />
+                  </Big>
+                  <Sub>open · {m.tasks.doneLast7d} done in 7 days</Sub>
+                </>
+              ) : (
+                <Missing />
+              )}
+            </Kpi>
+            <Kpi label="Runs today">
+              {m?.runsToday ? (
+                <>
+                  <Big>
+                    <Counter value={m.runsToday.total} />
+                  </Big>
+                  <Sub>
+                    {m.runsToday.succeeded} succeeded · <span className={m.runsToday.failed ? "text-destructive" : ""}>{m.runsToday.failed} failed</span>
+                  </Sub>
+                </>
+              ) : (
+                <Missing />
+              )}
+            </Kpi>
+            <Kpi label="Artifacts this week">
+              {m?.artifactsThisWeek !== null && m?.artifactsThisWeek !== undefined ? (
+                <>
+                  <Big>
+                    <Counter value={m.artifactsThisWeek} />
+                  </Big>
+                  <Sub>documents and files</Sub>
+                </>
+              ) : (
+                <Missing />
+              )}
+            </Kpi>
+            {/* cost when it is billed; tokens when the cost is 0 (subscription); hidden when neither exists */}
+            {usage && (
+              <Kpi label={usage.costCents ? "Cost this month" : "Tokens this month"}>
+                {usage.costCents ? (
+                  <>
+                    <Big>
+                      <Counter value={usage.costCents / 100} format={(n) => `$${n.toFixed(2)}`} />
+                    </Big>
+                    <Sub>{usage.tokens ? `${compact(usage.tokens)} tokens` : "from Paperclip costs"}</Sub>
+                  </>
+                ) : (
+                  <>
+                    <Big>
+                      <Counter value={usage.tokens ?? 0} format={compact} />
+                    </Big>
+                    <Sub>cost shows $0 on the subscription</Sub>
+                  </>
+                )}
+              </Kpi>
             )}
-          </div>
-          <p className="mt-2 text-[12px] text-muted">Click someone to see their tasks.</p>
-        </section>
+          </section>
 
-        <div className="grid gap-10 lg:grid-cols-[1.6fr_1fr]">
-          <section aria-label="Activity chart">
-            <SectionHead eyebrow="Last 14 days" title="Activity" />
-            <div className="rounded-sm border border-line p-4">
-              {m && (m.runsPerDay || m.tasksDonePerDay) ? (
-                <ActivityChart runs={m.runsPerDay} done={m.tasksDonePerDay} />
-              ) : m ? (
-                <Missing text="Run and task history is not available from Paperclip." />
+          {/* team strip */}
+          <section aria-label="Team" className="flex flex-col gap-3">
+            <SectionHead title="Who is doing what" hint="Click someone to see their tasks." />
+            <div className="relative h-strip overflow-hidden rounded-lg border border-border bg-scene-strip">
+              {agents.length ? (
+                <CrewScene members={members} labels rings maxHeight={120} bubbleWords={3} onPick={pickAgent} />
               ) : (
-                <Loading compact />
+                <p className="pt-16 text-center text-sm">No agents yet.</p>
               )}
             </div>
           </section>
 
-          <section aria-label="Live activity">
-            <SectionHead eyebrow="Live" title="What just happened" />
-            <div className="max-h-[300px] overflow-y-auto rounded-sm border border-line">
-              {!m ? (
-                <Loading compact />
-              ) : !m.feed ? (
-                <div className="p-4">
-                  <Missing text="No activity feed from Paperclip." />
-                </div>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {m.feed.map((e) => {
-                    const a = agents.find((x) => x.id === e.agentId);
-                    return (
-                      <li key={e.id} className="fade-in flex items-center gap-3 px-4 py-2.5">
-                        {a ? (
-                          <Critter agent={a} size={26} head />
-                        ) : (
-                          <span className="h-[26px] w-[26px] shrink-0 rounded-full border border-line bg-surface" aria-hidden />
-                        )}
-                        <span className="min-w-0 flex-1 text-[14px] leading-snug text-ink">{e.text}</span>
-                        <span className="shrink-0 font-mono text-[10px] text-muted">{timeAgo(e.at)}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </section>
-        </div>
+          <div className="grid gap-8 lg:grid-cols-5">
+            <section aria-label="Activity chart" className="flex flex-col gap-3 lg:col-span-3">
+              <SectionHead title="Activity" hint="Last 14 days" />
+              <Card className="p-4">
+                {m && (m.runsPerDay || m.tasksDonePerDay) ? (
+                  <ActivityChart runs={m.runsPerDay} done={m.tasksDonePerDay} />
+                ) : m ? (
+                  <Missing text="Run and task history is not available from Paperclip." />
+                ) : (
+                  <Loading compact />
+                )}
+              </Card>
+            </section>
 
-        {/* per-agent cards */}
-        <section aria-label="Per agent">
-          <SectionHead eyebrow="This week" title="Per agent" />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {agents.map((a) => {
-              const act = activityOf(a, data.liveRuns);
-              const s = m?.perAgent[a.id];
-              return (
-                <button key={a.id} onClick={() => pickAgent(a.id)} className="card-hover rounded-sm border border-line bg-canvas p-4 text-left">
-                  <div className="flex items-center gap-3">
-                    <Critter agent={a} size={34} head mood={act === "working" ? "busy" : act === "error" ? "error" : "idle"} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-medium text-ink">{a.name}</p>
-                      <p className="flex items-center gap-1.5 text-[12px]" style={{ color: ACTIVITY_COLOR[act] }}>
-                        <StatusDot activity={act} size={6} /> {ACTIVITY_LABEL[act]}
-                      </p>
-                    </div>
+            <section aria-label="Live activity" className="flex flex-col gap-3 lg:col-span-2">
+              <SectionHead title="What just happened" hint="Live" />
+              <Card className="scroll-quiet max-h-feed-max overflow-y-auto">
+                {!m ? (
+                  <Loading compact />
+                ) : !m.feed ? (
+                  <div className="p-4">
+                    <Missing text="No activity feed from Paperclip." />
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-y-1 text-[13px]">
-                    <dt className="text-body">Runs</dt>
-                    <dd className="text-right text-ink">{s?.runsThisWeek ?? <NaText />}</dd>
-                    <dt className="text-body">Tasks done</dt>
-                    <dd className="text-right text-ink">{s?.tasksDone ?? <NaText />}</dd>
-                    <dt className="text-body">Last active</dt>
-                    <dd className="text-right text-ink">{s?.lastActiveAt ? timeAgo(s.lastActiveAt) : <NaText />}</dd>
-                  </dl>
-                  <div className="mt-2 flex items-end justify-between">
-                    <span className="eyebrow">{roleLabel(a) || "Agent"}</span>
-                    {s?.spark ? <Sparkline values={s.spark} /> : <span className="text-[11px] text-muted">{NA}</span>}
-                  </div>
-                </button>
-              );
-            })}
+                ) : (
+                  <ActivityList
+                    label="Recent activity"
+                    items={m.feed.map((e) => ({ id: e.id, text: e.text, at: e.at, agent: agents.find((x) => x.id === e.agentId) ?? null }))}
+                  />
+                )}
+              </Card>
+            </section>
           </div>
-        </section>
 
-        {/* tasks */}
-        <section ref={tasksRef} aria-label="Tasks" className="scroll-mt-4">
-          <div className="mb-3 flex flex-wrap items-end gap-2">
-            <SectionHead eyebrow="Work" title="Tasks" inline />
-            <div className="ml-auto flex gap-2">
-              <Select value={agentFilter} onChange={setAgentFilter} label="Agent">
+          {/* per agent */}
+          <section aria-label="Per agent" className="flex flex-col gap-3">
+            <SectionHead title="Per agent" hint="This week" />
+            <Card className="overflow-hidden">
+              <div className="flex h-row items-center gap-3 border-b border-border px-4 text-sm leading-4" aria-hidden>
+                <span className="flex-1">Agent</span>
+                <span className="hidden w-col-person md:block">Status</span>
+                <span className="hidden w-col-num text-right sm:block">Runs</span>
+                <span className="hidden w-col-num text-right sm:block">Tasks done</span>
+                <span className="w-col-time text-right">Last active</span>
+                <span className="hidden w-spark lg:block">Trend</span>
+              </div>
+              <ul className="divide-y divide-border">
+                {agents.map((a) => {
+                  const act = activityOf(a, data.liveRuns);
+                  const st = m?.perAgent[a.id];
+                  return (
+                    <li key={a.id}>
+                      <button
+                        onClick={() => pickAgent(a.id)}
+                        className="group flex h-row w-full items-center gap-3 px-4 text-left text-sm leading-4 transition-colors duration-(--motion-duration-fast) hover:bg-muted"
+                      >
+                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                          <Critter agent={a} size={24} head mood={act === "working" ? "busy" : act === "error" ? "error" : "idle"} />
+                          <span className="truncate text-foreground">{a.name}</span>
+                          {roleLabel(a) && <span className="hidden truncate text-xs lg:inline">{roleLabel(a)}</span>}
+                        </span>
+                        <ActivityStatus activity={act} className="hidden w-col-person md:inline-flex" />
+                        <Mono className="hidden w-col-num text-right text-sm leading-4 sm:block">{st?.runsThisWeek ?? "—"}</Mono>
+                        <Mono className="hidden w-col-num text-right text-sm leading-4 sm:block">{st?.tasksDone ?? "—"}</Mono>
+                        <Mono className="w-col-time text-right text-sm leading-4">{st?.lastActiveAt ? timeAgo(st.lastActiveAt) : "—"}</Mono>
+                        <span className="hidden w-spark lg:block">{st?.spark ? <Sparkline values={st.spark} /> : <span className="text-xs">{NA}</span>}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          </section>
+
+          {/* tasks */}
+          <section ref={tasksRef} aria-label="Tasks" className="flex scroll-mt-4 flex-col gap-3">
+            <SectionHead title="Tasks" hint={`${shown.length} shown`} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Segmented
+                label="Status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[{ value: "", label: "All" }, ...statuses.map((st) => ({ value: st, label: statusText(st) }))]}
+              />
+              <Select value={agentFilter} onChange={setAgentFilter} label="Agent" className="ml-auto">
                 <option value="">All agents</option>
                 {agents.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -289,60 +295,61 @@ export default function Dashboard() {
                   </option>
                 ))}
               </Select>
-              <Select value={statusFilter} onChange={setStatusFilter} label="Status">
-                <option value="">All statuses</option>
-                {statuses.map((s) => (
-                  <option key={s} value={s}>
-                    {statusText(s)}
-                  </option>
-                ))}
-              </Select>
             </div>
-          </div>
-          {!issues ? (
-            <Loading compact />
-          ) : shown.length === 0 ? (
-            <p className="py-3 text-caption text-body">No tasks match these filters.</p>
-          ) : (
-            <ul className="divide-y divide-line rounded-sm border border-line">
-              {shown.map((i) => {
-                const a = agents.find((x) => x.id === i.assigneeAgentId);
-                return (
-                  <li key={i.id}>
-                    <button onClick={() => setOpenTask(i.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface">
-                      {a ? <Critter agent={a} size={24} head /> : <span className="h-6 w-6" />}
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] text-ink">{i.title}</span>
-                        <span className="block font-mono text-[10px] uppercase tracking-[0.22px] text-muted">
-                          {i.identifier && `${i.identifier} · `}
-                          {nameOf(i.assigneeAgentId)}
-                        </span>
-                      </span>
-                      <StatusPill status={i.status} />
-                      <span className="hidden w-24 text-right font-mono text-[10px] text-muted sm:block">{timeAgo(i.updatedAt)}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+            <Card className="overflow-hidden">
+              {!issues ? (
+                <Loading compact />
+              ) : shown.length === 0 ? (
+                <EmptyState
+                  compact
+                  art={false}
+                  title="No tasks match these filters"
+                  text="Pick another status or agent to see more."
+                  action={
+                    agentFilter || statusFilter ? (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setStatusFilter("");
+                          setAgentFilter("");
+                        }}
+                      >
+                        Clear filters
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <>
+                  <TaskListHeader />
+                  <ul className="divide-y divide-border">
+                    {shown.map((i) => (
+                      <li key={i.id}>
+                        <TaskRow issue={i} assignee={agents.find((x) => x.id === i.assigneeAgentId) ?? null} onOpen={() => setOpenTask(i.id)} />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </Card>
+          </section>
 
-        <section aria-label="Recent artifacts" className="pb-8">
-          <SectionHead eyebrow="Library" title="Recent artifacts" />
-          {!artifacts ? (
-            <Loading compact />
-          ) : artifacts.length === 0 ? (
-            <p className="text-caption text-body">Nothing saved yet.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {artifacts.slice(0, 12).map((a) => (
-                <ArtifactChip key={a.id} artifact={a} active={openArtifact?.id === a.id} onOpen={setOpenArtifact} />
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
+          <section aria-label="Recent artifacts" className="flex flex-col gap-3 pb-8">
+            <SectionHead title="Recent artifacts" hint="Library" />
+            {!artifacts ? (
+              <Loading compact />
+            ) : artifacts.length === 0 ? (
+              <p className="text-sm">Nothing saved yet. Documents and files the agents create show up here.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {artifacts.slice(0, 12).map((a) => (
+                  <ArtifactChip key={a.id} artifact={a} active={openArtifact?.id === a.id} onOpen={setOpenArtifact} />
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      </div>
 
       {openTask && <TaskPanel key={openTask} issueId={openTask} agents={agents} onClose={() => setOpenTask(null)} />}
       {openArtifact && <ArtifactDrawer artifact={openArtifact} mode="overlay" onClose={closeArtifact} />}
@@ -355,42 +362,28 @@ const compact = (n: number) =>
 
 function Kpi({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="border-b border-r border-line bg-canvas p-4 first:rounded-tl-sm">
-      <p className="eyebrow mb-2">{label}</p>
-      {children}
-    </div>
+    <Card className="flex flex-col gap-2 p-4">
+      <SectionLabel>{label}</SectionLabel>
+      <div>{children}</div>
+    </Card>
   );
 }
-const Big = ({ children }: { children: React.ReactNode }) => <p className="display text-[36px] leading-none">{children}</p>;
-const Sub = ({ children }: { children: React.ReactNode }) => <p className="mt-1.5 text-[13px] text-body">{children}</p>;
-const NaText = () => <span className="text-muted">{NA}</span>;
+const Big = ({ children }: { children: React.ReactNode }) => <p className="font-mono text-2xl tabular-nums text-foreground">{children}</p>;
+const Sub = ({ children }: { children: React.ReactNode }) => <p className="mt-1 text-xs">{children}</p>;
 function Missing({ text }: { text?: string }) {
   return (
     <>
-      <p className="display text-[22px] text-muted">{NA}</p>
-      {text && <p className="mt-1 text-[13px] text-body">{text}</p>}
+      <p className="text-base text-muted-foreground">{NA}</p>
+      {text && <p className="mt-1 text-xs">{text}</p>}
     </>
   );
 }
 
-function SectionHead({ eyebrow, title, inline }: { eyebrow: string; title: string; inline?: boolean }) {
+function SectionHead({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className={inline ? "" : "mb-3"}>
-      <p className="eyebrow">{eyebrow}</p>
-      <h2 className="display text-[24px]">{title}</h2>
+    <div className="flex items-baseline gap-3">
+      <h2 className="text-base font-semibold text-foreground">{title}</h2>
+      {hint && <p className="text-xs">{hint}</p>}
     </div>
-  );
-}
-
-function Select({ value, onChange, label, children }: { value: string; onChange: (v: string) => void; label: string; children: React.ReactNode }) {
-  return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-sm border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink outline-none transition-colors focus:border-accent"
-    >
-      {children}
-    </select>
   );
 }

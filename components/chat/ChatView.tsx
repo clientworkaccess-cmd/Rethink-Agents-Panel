@@ -5,12 +5,12 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ACTIVITY_COLOR, ACTIVITY_LABEL, activityOf, isThinking, roleLabel, runFor } from "@/lib/agents";
+import { activityOf, isThinking, roleLabel, runFor } from "@/lib/agents";
 import { api, isUnreachable, timeAgo, usePoll } from "@/lib/client";
 import type { Agent, Artifact, ChatSession, Issue, LiveRun, SessionsPayload } from "@/lib/types";
 import { ArtifactDrawer } from "../artifacts";
 import Critter from "../character/Critter";
-import { Loading, StatusDot, Unreachable } from "../ui";
+import { ActivityStatus, Button, Icon, IconButton, InlineNotice, Loading, Mono, PageHeader, SectionLabel, Unreachable, buttonClass, cx } from "../ui";
 import Conversation from "./Conversation";
 
 const CrewScene = dynamic(() => import("../character/CrewScene"), {
@@ -156,163 +156,164 @@ export default function ChatView({
 
   if (error === "unreachable" && !payload) return <Unreachable onRetry={loadSessions} />;
 
+  const activeTitle = active ? meta[active.issueId]?.title || active.title : current === "new" ? "New chat" : null;
+
   return (
-    <div className="flex h-full">
-      <aside className="hidden w-72 shrink-0 flex-col border-r border-line bg-surface md:flex" aria-label="Chat sessions">
-        <div className="relative border-b border-line px-4 pb-3 pt-3">
-          <Link href="/chat" className="eyebrow transition-colors hover:text-accent">
-            ← Lounge
+    <div className="flex h-full flex-col">
+      <PageHeader
+        leading={
+          <Link href="/chat" className={buttonClass("ghost", "icon-sm")} aria-label="Back to the lounge" title="Back to the lounge">
+            <Icon name="back" />
           </Link>
-          <div className="relative mx-auto mt-1 h-[104px] w-full">
-            <CrewScene members={avatarMember} bubbles={false} maxHeight={96} />
+        }
+        title={agent.name}
+        meta={
+          <span className="inline-flex items-center gap-2">
+            <ActivityStatus activity={act} />
+            {roleLabel(agent) && <span>· {roleLabel(agent)}</span>}
+            {activeTitle && <span className="truncate">· {activeTitle}</span>}
+          </span>
+        }
+        actions={
+          <Button variant="primary" size="sm" onClick={newChat} disabled={busy}>
+            <Icon name="plus" />
+            New chat
+          </Button>
+        }
+      />
+      <div className="relative flex min-h-0 flex-1">
+        <aside className="hidden w-aside-min shrink-0 flex-col border-r border-border md:flex" aria-label="Chat sessions">
+          <div className="flex flex-col items-center gap-1 border-b border-border px-4 py-3">
+            <div className="relative h-avatar-stage w-full">
+              <CrewScene members={avatarMember} bubbles={false} maxHeight={96} />
+            </div>
+            <ActivityStatus activity={act} />
           </div>
-          <p className="display text-center text-[22px]">{agent.name}</p>
-          <p className="flex items-center justify-center gap-1.5 text-[13px]" style={{ color: ACTIVITY_COLOR[act] }}>
-            <StatusDot activity={act} size={7} />
-            {roleLabel(agent) && <span className="text-body">{roleLabel(agent)} ·</span>}
-            {ACTIVITY_LABEL[act]}
-          </p>
-        </div>
-        <div className="p-3">
-          <button onClick={newChat} disabled={busy} className="btn btn-primary w-full uppercase">
-            + New chat
-          </button>
           {!sessionsAvailable && (
-            <p className="mt-3 rounded-sm border border-line bg-canvas px-3 py-2 text-[12px] leading-snug text-body" role="status">
+            <InlineNotice className="m-3 text-xs">
               Separate chat sessions are unavailable right now, so {agent.name} has one ongoing conversation. Nothing is lost.
-            </p>
+            </InlineNotice>
           )}
-        </div>
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
-          {!payload ? (
-            <Loading compact label="Loading chats…" />
-          ) : visibleSessions.length === 0 ? (
-            <p className="px-2 text-[13px] text-body">No chats yet. Say hello!</p>
-          ) : (
-            group(visibleSessions).map(([label, list]) => (
-              <div key={label} className="mb-3">
-                <p className="eyebrow px-2 pb-1 pt-2">{label}</p>
-                <ul className="flex flex-col gap-0.5">
-                  {list.map((s) => {
-                    const on = s.issueId === current;
-                    const title = meta[s.issueId]?.title || s.title;
-                    return (
-                      <li key={s.issueId} className="group relative">
-                        {editing === s.issueId ? (
-                          <input
-                            autoFocus
-                            defaultValue={title}
-                            aria-label="Chat name"
-                            onBlur={(e) => {
-                              updateMeta(s.issueId, { title: e.target.value.trim() || undefined });
-                              setEditing(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                              if (e.key === "Escape") setEditing(null);
-                            }}
-                            className="w-full rounded-sm border border-accent bg-canvas px-2 py-1.5 text-[14px] outline-none"
-                          />
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setArtifact(null);
-                              go(s.issueId);
-                            }}
-                            className={`w-full rounded-sm border px-2.5 py-2 pr-14 text-left transition-colors ${
-                              on ? "border-line bg-canvas" : "border-transparent hover:bg-canvas/70"
-                            }`}
-                          >
-                            <span className={`block truncate text-[14px] ${on ? "font-medium text-ink" : "text-ink"}`}>
-                              {meta[s.issueId]?.hidden && <span className="text-muted">(hidden) </span>}
-                              {title}
-                            </span>
-                            <span className="block font-mono text-[10px] uppercase tracking-[0.22px] text-muted">
-                              {s.legacy ? "Original chat · " : ""}
-                              {timeAgo(s.lastActivityAt)}
-                            </span>
-                          </button>
-                        )}
-                        {editing !== s.issueId && (
-                          <span className="absolute right-1.5 top-2 hidden gap-0.5 group-hover:flex group-focus-within:flex">
-                            <SmallIcon label="Rename (only in this browser)" onClick={() => setEditing(s.issueId)}>
-                              <path d="M3 13h3l7-7-3-3-7 7z" />
-                            </SmallIcon>
-                            <SmallIcon
-                              label={meta[s.issueId]?.hidden ? "Show again" : "Hide from this list (only in this browser)"}
-                              onClick={() => updateMeta(s.issueId, { hidden: !meta[s.issueId]?.hidden })}
+          <nav className="scroll-quiet min-h-0 flex-1 overflow-y-auto px-3 py-3">
+            {!payload ? (
+              <Loading compact label="Loading chats…" />
+            ) : visibleSessions.length === 0 ? (
+              <p className="px-2 text-sm">No chats yet. Start one with New chat.</p>
+            ) : (
+              group(visibleSessions).map(([label, list]) => (
+                <div key={label} className="mb-4">
+                  <SectionLabel className="px-2 pb-1">{label}</SectionLabel>
+                  <ul className="flex flex-col gap-0.5">
+                    {list.map((s) => {
+                      const on = s.issueId === current;
+                      const title = meta[s.issueId]?.title || s.title;
+                      return (
+                        <li key={s.issueId} className="group relative">
+                          {editing === s.issueId ? (
+                            <input
+                              autoFocus
+                              defaultValue={title}
+                              aria-label="Chat name"
+                              onBlur={(e) => {
+                                updateMeta(s.issueId, { title: e.target.value.trim() || undefined });
+                                setEditing(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                if (e.key === "Escape") setEditing(null);
+                              }}
+                              className="h-btn w-full rounded-md border border-control-border bg-background-alt px-2 text-sm text-foreground"
+                            />
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setArtifact(null);
+                                go(s.issueId);
+                              }}
+                              aria-current={on ? "true" : undefined}
+                              className={cx(
+                                "flex w-full flex-col gap-0.5 rounded-md px-2 py-2 pr-16 text-left transition-colors duration-(--motion-duration-fast)",
+                                on ? "bg-muted-highlight" : "hover:bg-muted",
+                              )}
                             >
-                              <path d="M2 5h12M4 5v8h8V5M6 3h4" />
-                            </SmallIcon>
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))
-          )}
-          {hiddenCount > 0 && (
-            <button onClick={() => setShowAll((v) => !v)} className="btn btn-ghost px-2 text-[12px]">
-              {showAll ? "Hide hidden chats" : `Show ${hiddenCount} hidden`}
-            </button>
-          )}
-        </nav>
-      </aside>
+                              <span className={cx("block truncate text-sm", on ? "font-semibold text-foreground" : "text-foreground/80")}>
+                                {meta[s.issueId]?.hidden && <span className="text-muted-foreground">(hidden) </span>}
+                                {title}
+                              </span>
+                              <Mono className="block">
+                                {s.legacy ? "Original chat · " : ""}
+                                {timeAgo(s.lastActivityAt)}
+                              </Mono>
+                            </button>
+                          )}
+                          {editing !== s.issueId && (
+                            <span className="absolute right-1 top-1.5 hidden gap-0.5 group-focus-within:flex group-hover:flex">
+                              <IconButton label="Rename (only in this browser)" onClick={() => setEditing(s.issueId)}>
+                                <Icon name="rename" className="size-icon-sm" />
+                              </IconButton>
+                              <IconButton
+                                label={meta[s.issueId]?.hidden ? "Show again" : "Hide from this list (only in this browser)"}
+                                onClick={() => updateMeta(s.issueId, { hidden: !meta[s.issueId]?.hidden })}
+                              >
+                                <Icon name="hide" className="size-icon-sm" />
+                              </IconButton>
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))
+            )}
+            {hiddenCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setShowAll((v) => !v)}>
+                {showAll ? "Hide hidden chats" : `Show ${hiddenCount} hidden`}
+              </Button>
+            )}
+          </nav>
+        </aside>
 
-      <div className="flex min-w-[300px] flex-1 flex-col">
-        {/* narrow screens: compact session picker */}
-        <div className="flex items-center gap-2 border-b border-line p-2 md:hidden">
-          <Link href="/chat" className="btn btn-ghost px-2" aria-label="Back to the lounge">
-            ←
-          </Link>
-          <Critter agent={agent} size={26} head />
-          <select
-            aria-label="Chat session"
-            value={current ?? ""}
-            onChange={(e) => go(e.target.value)}
-            className="min-w-0 flex-1 rounded-sm border border-line bg-canvas px-2 py-1.5 text-[14px]"
-          >
-            {sessionsAvailable && <option value="new">New chat</option>}
-            {sessions.map((s) => (
-              <option key={s.issueId} value={s.issueId}>
-                {meta[s.issueId]?.title || s.title}
-              </option>
-            ))}
-          </select>
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* narrow screens: compact session picker */}
+          <div className="flex items-center gap-2 border-b border-border p-2 md:hidden">
+            <Critter agent={agent} size={26} head />
+            <select
+              aria-label="Chat session"
+              value={current ?? ""}
+              onChange={(e) => go(e.target.value)}
+              className="h-btn min-w-0 flex-1 rounded-lg border border-control-border bg-background-alt px-2 text-sm text-foreground"
+            >
+              {sessionsAvailable && <option value="new">New chat</option>}
+              {sessions.map((s) => (
+                <option key={s.issueId} value={s.issueId}>
+                  {meta[s.issueId]?.title || s.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          {current === null || (current === "new" && !sessionsAvailable) ? (
+            <Loading label="Opening chat…" />
+          ) : (
+            <Conversation
+              key={current}
+              agent={agent}
+              agents={agents}
+              issueId={current === "new" ? null : current}
+              legacy={active?.legacy ?? false}
+              agentRunning={act === "working"}
+              replyTimeoutMs={payload?.replyTimeoutMs ?? 180_000}
+              openArtifactId={artifact?.id ?? null}
+              onOpenArtifact={setArtifact}
+              onCreated={onCreated}
+              onFallback={(session) => onCreated(session, true)}
+              onReplyingChange={setReplying}
+            />
+          )}
         </div>
-        {current === null || (current === "new" && !sessionsAvailable) ? (
-          <Loading label="Opening chat…" />
-        ) : (
-          <Conversation
-            key={current}
-            agent={agent}
-            agents={agents}
-            issueId={current === "new" ? null : current}
-            legacy={active?.legacy ?? false}
-            agentRunning={act === "working"}
-            replyTimeoutMs={payload?.replyTimeoutMs ?? 180_000}
-            openArtifactId={artifact?.id ?? null}
-            onOpenArtifact={setArtifact}
-            onCreated={onCreated}
-            onFallback={(session) => onCreated(session, true)}
-            onReplyingChange={setReplying}
-          />
-        )}
+
+        {artifact && <ArtifactDrawer artifact={artifact} mode="column" onClose={() => setArtifact(null)} />}
       </div>
-
-      {artifact && <ArtifactDrawer artifact={artifact} mode="column" onClose={() => setArtifact(null)} />}
     </div>
-  );
-}
-
-function SmallIcon({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} title={label} aria-label={label} className="rounded-sm p-1 text-muted transition-colors hover:bg-surface hover:text-accent">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-        {children}
-      </svg>
-    </button>
   );
 }
