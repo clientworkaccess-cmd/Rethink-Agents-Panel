@@ -12,10 +12,11 @@ import { CharacterBrain } from "@/components/character/brain";
 import { lookFor } from "@/components/character/model";
 import { CharacterRig } from "@/components/character/rig";
 import { createStage, type Stage } from "@/components/character/stage";
-import { activityOf, bubbleText, isThinking, roleLabel, runFor } from "@/lib/agents";
+import { activityOf, bubbleText, isThinking, runFor } from "@/lib/agents";
 import { activityHex, sceneChrome } from "@/lib/tokens";
 import { currentTheme, onThemeChange, prefersReducedMotion } from "@/lib/theme";
 import type { Agent, LiveRun } from "@/lib/types";
+import { deskLabels } from "./labels";
 import { stepsFor } from "./roles";
 import { buildRoom, type DeskOwner, type Room } from "./room";
 import { buildLayout, Grid, navigatorFor, type Layout } from "./world";
@@ -32,19 +33,6 @@ export type OfficeApi = {
 
 const OPEN_FLOOR = 0.85;
 const MARGIN = 20;
-
-/** Tag text per desk: the name (or role, or "AGENT"); duplicates get " 2", " 3" in desk order. */
-export function deskLabels(owners: (Agent | null)[]): (string | null)[] {
-  const seen = new Map<string, number>();
-  return owners.map((a) => {
-    if (!a) return null;
-    const base = a.name.trim() || roleLabel(a) || "AGENT";
-    const key = base.toUpperCase();
-    const n = (seen.get(key) ?? 0) + 1;
-    seen.set(key, n);
-    return n > 1 ? `${base} ${n}` : base;
-  });
-}
 
 type Props = {
   agents: Agent[];
