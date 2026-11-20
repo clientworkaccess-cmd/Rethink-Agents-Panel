@@ -3,22 +3,21 @@
 _Last updated: 2026-11-21_
 
 ## Status
-- Panel V1, V2 and the design refresh are merged into `main`.
-- **Brief 03 (character and office redesign)** on `feat/office-redesign`: PR open into `main`, not merged.
-  - Characters are restyled as chibi people. The look comes from the agent's id and role, and one art module (`components/character/art.ts`) feeds both the Pixi rig and the SVG avatar.
-  - The Office is a front-facing room that grows with the team: one tagged cubicle per agent, plus shared areas. Dark theme = night.
-  - Mock knob `PAPERCLIP_MOCK_AGENTS=N` sets the team size.
-- Verified in mock mode only:
-  - build, tsc and ESLint are clean;
-  - the Office was checked visually with 1, 3, 6, 10 and 14 agents in light and dark;
-  - lounge, dashboard strip and avatars were checked;
-  - the walking path test passes (0 of 6972 routes cross furniture or another agent's cubicle);
-  - auth guards are unchanged.
+- Panel V1, V2, the design refresh and brief 03 (chibi characters, front-facing Office) are merged into `main`.
+- **Office polish** on `feat/office-polish`: PR open into `main`, not merged. It implements the decisions on the three PR #4 questions:
+  - **Camera:** opens at max(fit, 0.85). When that floor applies, the room opens centred and top-aligned, the wheel pans, ctrl+wheel and pinch zoom, and panning is clamped. Zooming out still reaches the whole-room fit; "Reset view" returns to the opening view. Clicking "N waiting for you" pans to that agent's desk (each click goes to the next one).
+  - **Tags:** cubicle tags keep the agent's name, now unique and clickable. The role shows only in the card.
+  - **Hover emblem:** calmer.
+- Checked in mock mode:
+  - clicking a character or a tag opens the card, and its Chat and See tasks buttons work;
+  - reduced motion emulated live;
+  - phone (375 px) and tablet (768 px) on all tabs;
+  - 24 agents on a laptop iGPU: about 59 fps, worst frame 33 ms.
 - **Chat sessions against the real Paperclip are still not verified** (carried over from V2).
 
 ## Next
-1. Strategist and Alyan review the brief 03 PR visually in mock mode (try `PAPERCLIP_MOCK_AGENTS=1`, `6`, `14`), in light and dark. Open questions are in the PR.
-2. Merge after Alyan's OK.
+1. Strategist and Alyan review the office-polish PR in mock mode: `PAPERCLIP_MOCK_AGENTS=24` for the camera, plus a phone viewport.
+2. Merge after Alyan's OK. Possible follow-ups (not built): the activity card covers a third of the Office on a phone, and the header line with "N waiting for you" is hidden below the `sm` breakpoint.
 3. Still open from V2: Alyan runs the session check calls on the VPS; fix differences in the chat-session block of `lib/paperclip.ts`; check `heartbeat-runs`, `/activity`, `/costs/summary` field names against `lib/normalize.ts`.
 4. Deploy on the VPS (service + reverse proxy with TLS; port 3100 stays closed).
 
