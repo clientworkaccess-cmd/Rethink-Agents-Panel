@@ -1,9 +1,9 @@
 "use client";
-// Artifact chips and the artifact drawer (Markdown, sandboxed HTML, image/PDF preview, download).
-import { useEffect, useRef, useState } from "react";
-import { api, formatBytes } from "@/lib/client";
+// Artifact cards and the artifact drawer (Markdown, sandboxed HTML, image/PDF preview, download).
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, formatBytes, timeAgo } from "@/lib/client";
 import type { Artifact } from "@/lib/types";
-import { Markdown, Notice } from "./ui";
+import { Loading, Markdown, Notice } from "./ui";
 
 type Kind = "markdown" | "html" | "image" | "pdf" | "file";
 
@@ -33,8 +33,8 @@ function fileLabel(a: Artifact) {
   return artifactKind(a) === "file" && ext ? ext : KIND_LABEL[artifactKind(a)];
 }
 
-export function KindIcon({ kind }: { kind: Kind }) {
-  const common = { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3 } as const;
+export function KindIcon({ kind, size = 16 }: { kind: Kind; size?: number }) {
+  const common = { width: size, height: size, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.3 } as const;
   if (kind === "html")
     return (
       <svg {...common} aria-hidden>
@@ -44,7 +44,7 @@ export function KindIcon({ kind }: { kind: Kind }) {
   if (kind === "image")
     return (
       <svg {...common} aria-hidden>
-        <rect x="2" y="3" width="12" height="10" rx="2" />
+        <rect x="2" y="3" width="12" height="10" rx="1" />
         <path d="m3 12 3.5-3.5L9 11l2-2 2 2" strokeLinejoin="round" />
       </svg>
     );
@@ -57,21 +57,26 @@ export function KindIcon({ kind }: { kind: Kind }) {
   );
 }
 
+/** A small card with an icon, like Claude's artifact chips. */
 export function ArtifactChip({ artifact, active, onOpen }: { artifact: Artifact; active?: boolean; onOpen: (a: Artifact) => void }) {
   const kind = artifactKind(artifact);
   return (
     <button
       onClick={() => onOpen(artifact)}
-      className={`inline-flex max-w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${
-        active ? "border-deep-teal/50 bg-soft-paper" : "border-warm-mist bg-soft-paper hover:border-graphite/50"
+      className={`card-hover group inline-flex w-[240px] max-w-full items-center gap-3 rounded-sm border bg-canvas p-2.5 text-left ${
+        active ? "border-accent" : "border-line"
       }`}
     >
-      <span className="text-graphite">
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border transition-colors ${
+          active ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-body group-hover:text-accent"
+        }`}
+      >
         <KindIcon kind={kind} />
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-body text-ink">{artifact.title}</span>
-        <span className="block text-caption text-graphite">
+        <span className="block truncate text-[14px] font-medium text-ink">{artifact.title}</span>
+        <span className="block font-mono text-[10px] uppercase tracking-[0.22px] text-muted">
           {fileLabel(artifact)}
           {artifact.size !== null && ` · ${formatBytes(artifact.size)}`}
         </span>
@@ -111,6 +116,7 @@ function ArtifactBody({ artifact }: { artifact: Artifact }) {
   if (failed)
     return (
       <Notice
+        mood="error"
         title="Could not load this artifact"
         text="Paperclip may not be reachable right now."
         onRetry={() => {
@@ -122,32 +128,32 @@ function ArtifactBody({ artifact }: { artifact: Artifact }) {
 
   if (kind === "image")
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={contentUrl(artifact)} alt={artifact.title} className="mx-auto max-h-full max-w-full rounded-xl" />;
-  if (kind === "pdf") return <iframe title={artifact.title} src={contentUrl(artifact)} className="h-full w-full rounded-xl border border-warm-mist" />;
+    return <img src={contentUrl(artifact)} alt={artifact.title} className="mx-auto max-h-full max-w-full rounded-sm" />;
+  if (kind === "pdf") return <iframe title={artifact.title} src={contentUrl(artifact)} className="h-full w-full rounded-sm border border-line" />;
   if (kind === "file")
     return (
       <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <span className="text-graphite">
-          <KindIcon kind="file" />
+        <span className="flex h-12 w-12 items-center justify-center rounded-sm border border-line bg-surface text-body">
+          <KindIcon kind="file" size={20} />
         </span>
-        <p className="text-body-lg">{artifact.title}</p>
-        <p className="text-body text-graphite">
+        <p className="display text-[20px]">{artifact.title}</p>
+        <p className="text-caption text-body">
           {fileLabel(artifact)}
           {artifact.size !== null && ` · ${formatBytes(artifact.size)}`} · no preview for this file type
         </p>
-        <a href={downloadUrl(artifact)} className="rounded-xl bg-ink px-4 py-2 text-body text-parchment">
+        <a href={downloadUrl(artifact)} className="btn btn-primary uppercase">
           Download
         </a>
       </div>
     );
-  if (text === null) return <p className="p-4 text-body text-graphite">Loading…</p>;
+  if (text === null) return <Loading label="Opening…" />;
   if (kind === "html")
     return (
       // Untrusted agent HTML: scripts may run, but never with the panel's origin (no allow-same-origin).
-      <iframe title={artifact.title} sandbox="allow-scripts" srcDoc={text} className="h-full w-full rounded-xl border border-warm-mist bg-white" />
+      <iframe title={artifact.title} sandbox="allow-scripts" srcDoc={text} className="h-full w-full rounded-sm border border-line bg-white" />
     );
   return (
-    <div className="mx-auto max-w-[760px] px-1 pb-8">
+    <div className="mx-auto max-w-[760px] px-2 pb-8">
       <Markdown>{text}</Markdown>
     </div>
   );
@@ -155,25 +161,31 @@ function ArtifactBody({ artifact }: { artifact: Artifact }) {
 
 /**
  * The drawer. `column` sits in the page flow (Chat's right column); `overlay` slides over the page (Dashboard).
- * Resizable from its left edge, can expand to full width, and closes.
+ * Slides in from the right, resizable from its left edge, expands to full width, closes smoothly.
  */
 export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact; onClose: () => void; mode: "column" | "overlay" }) {
-  const [width, setWidth] = useState(520);
+  const [width, setWidth] = useState(() => (typeof window === "undefined" ? 560 : Math.round(Math.min(600, Math.max(340, window.innerWidth * (mode === "column" ? 0.42 : 0.6))))));
   const [expanded, setExpanded] = useState(false);
+  const [closing, setClosing] = useState(false);
   const drag = useRef<{ x: number; w: number } | null>(null);
   const kind = artifactKind(artifact);
+
+  const close = useCallback(() => {
+    setClosing(true);
+    setTimeout(onClose, 180);
+  }, [onClose]);
 
   useEffect(() => {
     const move = (e: PointerEvent) => {
       if (!drag.current) return;
-      const max = Math.max(360, window.innerWidth * 0.75);
-      setWidth(Math.min(max, Math.max(320, drag.current.w + drag.current.x - e.clientX)));
+      const max = Math.max(380, window.innerWidth * 0.75);
+      setWidth(Math.min(max, Math.max(340, drag.current.w + drag.current.x - e.clientX)));
     };
     const up = () => {
       drag.current = null;
       document.body.style.userSelect = "";
     };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("keydown", esc);
@@ -182,16 +194,23 @@ export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact
       window.removeEventListener("pointerup", up);
       window.removeEventListener("keydown", esc);
     };
-  }, [onClose]);
+  }, [close]);
 
   const placement = expanded
     ? "fixed inset-x-0 bottom-0 top-14 z-30"
     : mode === "overlay"
-      ? "fixed bottom-0 right-0 top-14 z-30 shadow-subtle"
-      : "relative h-full shrink-0";
+      ? "fixed bottom-0 right-0 top-14 z-30 max-w-full"
+      : "relative h-full shrink-0 max-w-[70vw]";
 
   return (
-    <aside className={`${placement} flex flex-col border-l border-warm-mist bg-parchment`} style={expanded ? undefined : { width }} aria-label="Artifact">
+    <aside
+      key={artifact.id}
+      className={`${placement} slide-in-right flex flex-col border-l border-line bg-canvas transition-[opacity,transform] duration-200 ${
+        closing ? "translate-x-6 opacity-0" : ""
+      }`}
+      style={expanded ? undefined : { width }}
+      aria-label="Artifact"
+    >
       {!expanded && (
         <div
           role="separator"
@@ -201,28 +220,28 @@ export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact
             drag.current = { x: e.clientX, w: width };
             document.body.style.userSelect = "none";
           }}
-          className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-deep-teal/10"
+          className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-accent/20"
         />
       )}
-      <div className="flex items-center gap-3 border-b border-warm-mist/70 px-4 py-3">
-        <span className="text-graphite">
+      <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-line bg-surface text-accent">
           <KindIcon kind={kind} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-body text-ink">{artifact.title}</p>
-          <p className="truncate text-caption text-graphite">
+          <p className="truncate text-[15px] font-medium text-ink">{artifact.title}</p>
+          <p className="truncate font-mono text-[10px] uppercase tracking-[0.22px] text-muted">
             {fileLabel(artifact)}
             {artifact.agentName && ` · ${artifact.agentName}`}
-            {artifact.issueTitle && ` · ${artifact.issueTitle}`}
+            {artifact.updatedAt && ` · ${timeAgo(artifact.updatedAt)}`}
           </p>
         </div>
-        <a href={downloadUrl(artifact)} className="rounded-md border border-warm-mist px-3 py-1.5 text-body-sm text-graphite hover:text-ink">
+        <a href={downloadUrl(artifact)} className="btn btn-outline">
           Download
         </a>
         <IconButton label={expanded ? "Restore width" : "Expand to full width"} onClick={() => setExpanded((v) => !v)}>
           {expanded ? <path d="M6 2v4H2M10 14v-4h4" /> : <path d="M2 6V2h4M14 10v4h-4" />}
         </IconButton>
-        <IconButton label="Close" onClick={onClose}>
+        <IconButton label="Close" onClick={close}>
           <path d="m4 4 8 8M12 4l-8 8" />
         </IconButton>
       </div>
@@ -235,7 +254,7 @@ export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact
 
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} title={label} aria-label={label} className="rounded-md p-1.5 text-graphite hover:bg-warm-mist/40 hover:text-ink">
+    <button onClick={onClick} title={label} aria-label={label} className="rounded-sm p-1.5 text-body transition-colors hover:bg-surface hover:text-accent">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
         {children}
       </svg>

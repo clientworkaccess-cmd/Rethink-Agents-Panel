@@ -1,9 +1,13 @@
 "use client";
-// Small shared pieces: status dot, Markdown, calm notices.
+// Small shared pieces: status dot, Markdown, friendly notices and loading states with a character.
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ACTIVITY_COLOR, ACTIVITY_LABEL } from "@/lib/agents";
 import type { Activity } from "@/lib/types";
+import Critter, { type CritterMood } from "./character/Critter";
+
+/** A stand-in character for loading, empty and error states (not tied to an agent). */
+const HELPER = { id: "panel-helper-3", role: "general", name: "helper" };
 
 export function StatusDot({ activity, size = 8 }: { activity: Activity; size?: number }) {
   return (
@@ -12,18 +16,6 @@ export function StatusDot({ activity, size = 8 }: { activity: Activity; size?: n
       className="inline-block shrink-0 rounded-full"
       style={{ width: size, height: size, background: ACTIVITY_COLOR[activity] }}
     />
-  );
-}
-
-export function Avatar({ name, color, size = 28 }: { name: string; color: string; size?: number }) {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full text-caption font-medium text-white"
-      style={{ width: size, height: size, background: color }}
-      aria-hidden
-    >
-      {name.slice(0, 1).toUpperCase()}
-    </span>
   );
 }
 
@@ -41,13 +33,24 @@ export function Markdown({ children }: { children: string }) {
   );
 }
 
-export function Notice({ title, text, onRetry }: { title: string; text?: string; onRetry?: () => void }) {
+export function Notice({
+  title,
+  text,
+  onRetry,
+  mood = "idle",
+}: {
+  title: string;
+  text?: string;
+  onRetry?: () => void;
+  mood?: CritterMood;
+}) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      <p className="text-body-lg text-ink">{title}</p>
-      {text && <p className="max-w-sm text-body text-graphite">{text}</p>}
+    <div className="fade-in flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+      <Critter agent={HELPER} size={48} mood={mood} />
+      <p className="display mt-2 text-[20px]">{title}</p>
+      {text && <p className="max-w-sm text-caption text-body">{text}</p>}
       {onRetry && (
-        <button onClick={onRetry} className="mt-2 rounded-md border border-warm-mist px-3 py-1.5 text-body text-graphite hover:text-ink">
+        <button onClick={onRetry} className="btn btn-outline mt-2">
           Try again
         </button>
       )}
@@ -56,15 +59,32 @@ export function Notice({ title, text, onRetry }: { title: string; text?: string;
 }
 
 export function Unreachable({ onRetry }: { onRetry?: () => void }) {
-  return <Notice title="Paperclip is not reachable" text="The agents are still there. We will keep trying in the background." onRetry={onRetry} />;
+  return (
+    <Notice
+      mood="error"
+      title="Paperclip is not reachable"
+      text="The agents are still there. We will keep trying in the background."
+      onRetry={onRetry}
+    />
+  );
+}
+
+/** Loading state: a small busy character, not a grey spinner. */
+export function Loading({ label = "Fetching…", compact = false }: { label?: string; compact?: boolean }) {
+  return (
+    <div className={`fade-in flex items-center justify-center gap-3 ${compact ? "py-3" : "py-16"}`} role="status">
+      <Critter agent={HELPER} size={compact ? 24 : 36} mood="busy" />
+      <span className="eyebrow">{label}</span>
+    </div>
+  );
 }
 
 export function Dots() {
   return (
     <span className="dots inline-flex gap-0.5" aria-hidden>
-      <span className="h-1 w-1 rounded-full bg-graphite" />
-      <span className="h-1 w-1 rounded-full bg-graphite" />
-      <span className="h-1 w-1 rounded-full bg-graphite" />
+      <span className="h-1 w-1 rounded-full bg-muted" />
+      <span className="h-1 w-1 rounded-full bg-muted" />
+      <span className="h-1 w-1 rounded-full bg-muted" />
     </span>
   );
 }
@@ -78,11 +98,15 @@ export function StatusPill({ status }: { status: string }) {
   const active = status === "in_progress";
   return (
     <span
-      className={`shrink-0 rounded-full px-2 py-0.5 text-caption ${
-        active ? "bg-deep-teal text-white" : done ? "text-ash" : "border border-warm-mist text-graphite"
+      className={`shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.22px] ${
+        active ? "border-accent bg-accent-soft text-accent-ink" : done ? "border-line text-muted" : "border-line text-body"
       }`}
     >
       {statusText(status)}
     </span>
   );
+}
+
+export function Eyebrow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <p className={`eyebrow ${className}`}>{children}</p>;
 }

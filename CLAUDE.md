@@ -35,6 +35,7 @@ browser ──> panel (frontend + its own backend, on the VPS) ──> Paperclip
 | Artifacts (all) | `GET /api/companies/{cid}/artifacts?agentId=…` |
 | Documents in a chat | `GET /api/issues/{issueId}/documents/{key}` |
 | Files in a chat | `GET /api/issues/{issueId}/attachments`, `GET /api/attachments/{id}/content[?download=1]` |
+| Chat sessions (panel, brief 02; **real-Paperclip check pending**) | `POST /api/companies/{cid}/issues` (assigned to the agent, marker `panel-chat-session: v1` in the description), then the comment, then optional `POST /api/agents/{id}/wakeup`. List: `GET /api/companies/{cid}/issues?assigneeAgentId=…` filtered by the marker. All in `lib/paperclip.ts`; falls back to `/chats` if it fails |
 
 Agent `status`: `active, paused, idle, running, error, pending_approval, terminated`. There is no "waiting" status; derive it.
 Replies come as whole comments, not streamed; show run progress as a "working…" indicator.
@@ -45,7 +46,7 @@ Full research: `docs/paperclip-api-research.md` and the Paperclip OpenAPI at `GE
 Follow `DESIGN.md` everywhere (updated 2026-11-21): white paper canvas, one vivid violet accent, Lustria + DM Sans + Martian Mono, square 4px corners, hairline borders. Characters are chubby, candy-coloured claymation creatures; the office art and agents follow that style. A dark theme is derived from it (brief 02).
 
 ## Rules
-1. **Read-only toward the business.** The panel only displays data and sends chat messages. It never changes agents, budgets or settings in Paperclip.
+1. **Read-only toward the business.** The panel only displays data, sends chat messages and creates chat-session issues (assigned to an agent, with the panel-chat marker). It never changes agents, tasks, budgets or settings in Paperclip.
 2. **No secrets in code or git.** `.env` is git-ignored. Use `.env.example` for names only.
 3. **Keep it simple.** No feature beyond the current brief. Propose extras, don't build them.
 4. **Log every change.** Add one line at the top of `CHANGELOG.md`: `YYYY-MM-DD — short description`.

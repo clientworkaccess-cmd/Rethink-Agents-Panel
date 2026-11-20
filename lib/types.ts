@@ -41,6 +41,7 @@ export type Issue = {
   assigneeAgentId: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  completedAt: string | null;
 };
 
 export type Comment = {
@@ -76,5 +77,57 @@ export type Artifact = {
 };
 
 export type AgentsPayload = { agents: Agent[]; liveRuns: LiveRun[] };
+
+/** One chat conversation with an agent. `legacy` = Paperclip's single `/chats` issue for that agent. */
+export type ChatSession = {
+  issueId: string;
+  title: string;
+  legacy: boolean;
+  createdAt: string | null;
+  lastActivityAt: string | null;
+};
+
+export type SessionsPayload = {
+  sessions: ChatSession[];
+  /** False when multi-session chat is not available: the panel then uses the single `/chats` conversation. */
+  sessionsAvailable: boolean;
+  /** How long the browser waits for a first reply on a new session before falling back (ms). */
+  replyTimeoutMs: number;
+};
+
+export type CreateSessionResult = {
+  session: ChatSession;
+  comment: Comment | null;
+  /** True when the session issue could not be created and the message went to the `/chats` conversation instead. */
+  fallback: boolean;
+};
+
+/** A human-readable activity event. */
+export type ActivityEvent = {
+  id: string;
+  at: string | null;
+  agentId: string | null;
+  text: string;
+  kind: "finished" | "started" | "failed" | "created" | "commented" | "artifact" | "other";
+};
+
+export type DayPoint = { day: string; value: number };
+
+/** Dashboard metrics. `null` means "not available" (source missing or empty): never invented. */
+export type Metrics = {
+  generatedAt: string;
+  agents: { working: number; idle: number; errors: number } | null;
+  tasks: { open: number; doneLast7d: number } | null;
+  runsToday: { total: number; succeeded: number; failed: number } | null;
+  artifactsThisWeek: number | null;
+  usageThisMonth: { costCents: number | null; tokens: number | null } | null;
+  runsPerDay: DayPoint[] | null;
+  tasksDonePerDay: DayPoint[] | null;
+  perAgent: Record<
+    string,
+    { runsThisWeek: number | null; tasksDone: number | null; lastActiveAt: string | null; spark: number[] | null }
+  >;
+  feed: ActivityEvent[] | null;
+};
 
 export type ApiError = { error: string; message: string };

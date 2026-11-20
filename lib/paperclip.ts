@@ -11,9 +11,25 @@ import {
   toAgent,
   toComment,
   toIssue,
+  toActivityEvent,
   toLiveRun,
+  toRunRecord,
+  toUsage,
+  type RunRecord,
 } from "./normalize";
-import type { Agent, AgentsPayload, Artifact, Comment, Issue, LiveRun, RunProgress } from "./types";
+import type {
+  ActivityEvent,
+  Agent,
+  AgentsPayload,
+  Artifact,
+  ChatSession,
+  Comment,
+  CreateSessionResult,
+  Issue,
+  LiveRun,
+  RunProgress,
+  SessionsPayload,
+} from "./types";
 
 const TIMEOUT_MS = 8000;
 
@@ -46,7 +62,8 @@ async function call(method: "GET" | "POST", path: string, body?: unknown): Promi
     try {
       return await mockRequest(method, path, body);
     } catch (err) {
-      throw new PaperclipError("upstream", String(err).includes("mock-400") ? 400 : 404);
+      const msg = String(err);
+      throw new PaperclipError("upstream", msg.includes("mock-400") ? 400 : msg.includes("mock-500") ? 502 : 404);
     }
   }
   let res: Response;
@@ -179,3 +196,213 @@ export async function attachmentContent(attachmentId: string, download: boolean)
   if (!res.ok) throw new PaperclipError("upstream", res.status === 404 ? 404 : 502);
   return res;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Chat sessions (brief 02 §4.3): one Paperclip issue per session, assigned to the agent and marked
+// as a panel chat in its description. Creating these issues (and waking the agent for them) is the
+// ONLY write the panel makes besides chat comments. Everything session-specific is in this block,
+// so adjusting it after the real-Paperclip check is a change to this file only.
+// ---------------------------------------------------------------------------------------------
+
+/** Marker line in the issue description that identifies a panel chat session. */
+export const SESSION_MARKER = "panel-chat-session: v1";
+const SESSION_TITLE_PREFIX = "Chat · ";
+/** After a failed session (create error or no reply in time), report sessions as unavailable for this long. */
+const BROKEN_FOR_MS = 10 * 60_000;
+
+type SessionHealth = { brokenUntil: number };
+const g = globalThis as unknown as { __panelSessions?: SessionHealth };
+const health: SessionHealth = (g.__panelSessions ??= { brokenUntil: 0 });
+
+/** create (default): wake the agent once, when a session is created. every: also after each message. off: never. */
+const wakeMode = () => {
+  const v = (process.env.PANEL_CHAT_WAKEUP || "create").toLowerCase();
+  return v === "every" || v === "off" ? v : "create";
+};
+
+export const replyTimeoutMs = () => {
+  const n = Number(process.env.PANEL_SESSION_REPLY_TIMEOUT_MS);
+  return Number.isFinite(n) && n >= 10_000 ? n : 180_000;
+};
+
+const isSession = (issue: Issue) => issue.description.includes(SESSION_MARKER);
+
+function toSession(issue: Issue, legacy: boolean): ChatSession {
+  const title = legacy
+    ? "First chat"
+    : issue.title.startsWith(SESSION_TITLE_PREFIX)
+      ? issue.title.slice(SESSION_TITLE_PREFIX.length)
+      : issue.title;
+  return {
+    issueId: issue.id,
+    title: title || "Chat",
+    legacy,
+    createdAt: issue.createdAt,
+    lastActivityAt: issue.updatedAt ?? issue.createdAt,
+  };
+}
+
+/** The agent must exist and not be terminated: sessions are only ever assigned to a real agent. */
+async function requireAgent(agentId: string): Promise<Agent> {
+  const data = await call("GET", `/companies/${companyId()}/agents`);
+  const agent = compact<Agent>(asArray(data, "agents").map(toAgent)).find((a) => a.id === agentId);
+  if (!agent || agent.status === "terminated") throw new PaperclipError("upstream", 404);
+  return agent;
+}
+
+const unwrapIssue = (o: Record<string, unknown>) =>
+  (o.issue && typeof o.issue === "object" ? o.issue : o) as Record<string, unknown>;
+
+/** Paperclip's single `/chats` issue for this agent, if it exists. Read-only (does not create one). */
+async function legacyChat(agentId: string): Promise<Issue | null> {
+  try {
+    const data = await call("GET", `/companies/${companyId()}/chats`);
+    const hit = asArray(data, "chats", "issues").map(unwrapIssue).find(
+      (o) => o.conversationAgentId === agentId || (o.assigneeAgentId === agentId && "conversationAgentId" in o),
+    );
+    return hit ? toIssue(hit) : null;
+  } catch (err) {
+    if (err instanceof PaperclipError && err.kind === "unreachable") throw err;
+    return null;
+  }
+}
+
+/** Sessions with one agent, newest first; the `/chats` conversation (if any) is listed first so no history is lost. */
+export async function listChatSessions(agentId: string): Promise<SessionsPayload> {
+  const id = seg(agentId);
+  const [legacy, issues] = await Promise.all([
+    legacyChat(agentId),
+    call("GET", `/companies/${companyId()}/issues?assigneeAgentId=${id}`)
+      .then((d) => compact<Issue>(asArray(d, "issues").map(toIssue)))
+      .catch((err) => {
+        if (err instanceof PaperclipError && err.kind === "unreachable") throw err;
+        return [] as Issue[];
+      }),
+  ]);
+  const sessions = issues
+    .filter((i) => i.assigneeAgentId === agentId && isSession(i) && i.id !== legacy?.id)
+    .map((i) => toSession(i, false))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  return {
+    sessions: legacy ? [toSession(legacy, true), ...sessions] : sessions,
+    sessionsAvailable: Date.now() >= health.brokenUntil,
+    replyTimeoutMs: replyTimeoutMs(),
+  };
+}
+
+function sessionTitle(firstMessage: string): string {
+  const words = firstMessage.replace(/\s+/g, " ").trim().split(" ").slice(0, 6).join(" ");
+  return SESSION_TITLE_PREFIX + (words.length > 60 ? words.slice(0, 57) + "..." : words || "New chat");
+}
+
+async function wakeAgent(agentId: string, issueId: string): Promise<void> {
+  try {
+    await call("POST", `/agents/${seg(agentId)}/wakeup`, {
+      source: "on_demand",
+      triggerDetail: "manual",
+      reason: "panel_chat_message",
+      payload: { issueId },
+    });
+  } catch (err) {
+    // Non-fatal: commenting on an assigned issue may already wake the agent. Logged for the VPS check.
+    console.warn("[panel] wakeup failed", err instanceof PaperclipError ? `${err.kind} ${err.status}` : err);
+  }
+}
+
+/**
+ * The single entry point for creating a chat session. Creates the session issue (assigned to the
+ * agent, with the marker), posts the first message as a comment and wakes the agent. If Paperclip
+ * refuses the issue, the message goes to the agent's single `/chats` conversation instead
+ * (`fallback: true`), so the chat keeps working.
+ */
+export async function startChatSession(agentId: string, body: string, clientRequestId: string): Promise<CreateSessionResult> {
+  const agent = await requireAgent(agentId);
+  let issue: Issue | null = null;
+  try {
+    const raw = await call("POST", `/companies/${companyId()}/issues`, {
+      title: sessionTitle(body),
+      description:
+        `Chat session opened from the Agents Panel with ${agent.name}. ` +
+        "The conversation is in the comments of this issue: please reply there.\n\n" +
+        SESSION_MARKER,
+      assigneeAgentId: agent.id,
+      status: "todo",
+    });
+    issue = raw && typeof raw === "object" ? toIssue(unwrapIssue(raw as Record<string, unknown>)) : null;
+    if (!issue) throw new PaperclipError("upstream");
+  } catch (err) {
+    if (err instanceof PaperclipError && err.kind === "unreachable") throw err;
+    console.warn("[panel] session issue create failed, using /chats", err instanceof PaperclipError ? err.status : err);
+    health.brokenUntil = Date.now() + BROKEN_FOR_MS;
+    return fallbackToChat(agent.id, body, clientRequestId);
+  }
+  const comment = await postComment(issue.id, body, clientRequestId);
+  if (wakeMode() !== "off") await wakeAgent(agent.id, issue.id);
+  return { session: toSession(issue, false), comment, fallback: false };
+}
+
+/**
+ * Fallback when sessions do not work (create failed, or no reply in time): opens the agent's single
+ * `/chats` conversation and posts the message there. Marks sessions unavailable for a while.
+ */
+export async function fallbackToChat(agentId: string, body: string | null, clientRequestId: string | null): Promise<CreateSessionResult> {
+  health.brokenUntil = Date.now() + BROKEN_FOR_MS;
+  const chat = await openChat(agentId);
+  const comment = body && clientRequestId ? await postComment(chat.id, body, clientRequestId) : null;
+  return { session: toSession(chat, true), comment, fallback: true };
+}
+
+/** Posts a chat message. With PANEL_CHAT_WAKEUP=every, session issues also get an explicit wakeup. */
+export async function postChatMessage(issueId: string, body: string, clientRequestId: string): Promise<Comment> {
+  const comment = await postComment(issueId, body, clientRequestId);
+  if (wakeMode() === "every") {
+    try {
+      const { issue } = await getIssue(issueId);
+      if (isSession(issue) && issue.assigneeAgentId) await wakeAgent(issue.assigneeAgentId, issue.id);
+    } catch {
+      // the comment is posted; wakeup is best effort
+    }
+  }
+  return comment;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Dashboard sources. Each returns null when the endpoint is missing or empty ("Not available").
+// ---------------------------------------------------------------------------------------------
+
+async function optional<T>(fn: () => Promise<T>): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof PaperclipError && err.kind === "unreachable") throw err;
+    return null;
+  }
+}
+
+export function getActivity(names: Record<string, string>, limit = 40): Promise<ActivityEvent[] | null> {
+  return optional(async () => {
+    const data = await call("GET", `/companies/${companyId()}/activity?limit=${limit}`);
+    const rows = asArray(data, "activity", "events", "entries");
+    return rows.length ? compact<ActivityEvent>(rows.map((r) => toActivityEvent(r, names))) : null;
+  });
+}
+
+export function getUsageThisMonth(): Promise<{ costCents: number | null; tokens: number | null } | null> {
+  return optional(async () => {
+    const now = new Date();
+    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    return toUsage(await call("GET", `/companies/${companyId()}/costs/summary?from=${encodeURIComponent(from)}`));
+  });
+}
+
+/** Recent heartbeat runs (finished and running). This list endpoint is not in the V1 research: unverified, optional. */
+export function listRecentRuns(limit = 500): Promise<RunRecord[] | null> {
+  return optional(async () => {
+    const data = await call("GET", `/companies/${companyId()}/heartbeat-runs?limit=${limit}`);
+    const rows = asArray(data, "runs", "heartbeatRuns");
+    return rows.length ? compact<RunRecord>(rows.map(toRunRecord)) : null;
+  });
+}
+
+export const listIssuesOptional = () => optional(listIssues);
+export const listArtifactsOptional = (n = 100) => optional(() => listRecentArtifacts(n));
