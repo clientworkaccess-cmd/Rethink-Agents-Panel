@@ -1,33 +1,30 @@
-// Where each role goes while it works, and what it does there. Add a role by adding a key (matched against
-// the agent's role, then its name, case-insensitive). Unknown roles use `default`.
-// Spots: "desk" is the agent's own desk; the others are defined in world.ts (SPOTS).
+// Where each role goes while it works, and what it does there. The role kind comes from the agent's role and
+// name (model.ts roleKind), the same kind that picks its outfit and prop. Add a role kind there, then here.
+// Spots: "desk" is the agent's own cubicle; the others are shared areas defined in world.ts (layout.spots).
+// The brain walks the list in a loop while the agent is working, so every agent keeps coming back to its desk.
 import type { Step } from "@/components/character/brain";
+import { roleKind, type RoleKind } from "@/components/character/model";
 
-export const ROLE_STEPS: Record<string, Step[]> = {
-  // Chief Revenue Officer: points at the chart wall, writes on the whiteboard, then types at the desk.
-  cro: [
-    { spot: "chartWall", action: "study" },
-    { spot: "whiteboard", action: "write" },
-    { spot: "desk", action: "type" },
-  ],
-  // Marketing: pins ideas on the campaign board, announces with the megaphone, then types.
-  cmo: [
-    { spot: "posterBoard", action: "pin" },
-    { spot: "stage", action: "announce" },
-    { spot: "desk", action: "type" },
-  ],
-  analyst: [
-    { spot: "chartWall", action: "inspect" },
-    { spot: "desk", action: "type" },
-  ],
-  default: [{ spot: "desk", action: "type" }],
+const desk: Step = { spot: "desk", action: "type" };
+
+export const ROLE_STEPS: Record<RoleKind, Step[]> = {
+  // Chief Revenue Officer: studies the chart wall, writes on the whiteboard, presents at the meeting screen.
+  cro: [{ spot: "chartWall", action: "study" }, { spot: "whiteboard", action: "write" }, { spot: "meetingScreen", action: "present" }, desk],
+  // Marketing: pins ideas on the notice board, announces with the megaphone by the meeting screen.
+  cmo: [{ spot: "noticeBoard", action: "pin" }, { spot: "meetingScreen", action: "announce" }, desk],
+  analyst: [{ spot: "chartWall", action: "inspect" }, { spot: "serverRack", action: "tinker" }, desk],
+  cfo: [{ spot: "chartWall", action: "study" }, { spot: "meetingTable", action: "meet" }, desk],
+  ceo: [{ spot: "meetingScreen", action: "present" }, { spot: "whiteboard", action: "write" }, desk],
+  coo: [{ spot: "noticeBoard", action: "pin" }, { spot: "meetingTable", action: "meet" }, desk],
+  ops: [{ spot: "noticeBoard", action: "pin" }, { spot: "meetingTable", action: "meet" }, desk],
+  cto: [{ spot: "serverRack", action: "tinker" }, { spot: "whiteboard", action: "write" }, desk],
+  dev: [{ spot: "serverRack", action: "tinker" }, { spot: "whiteboard", action: "write" }, desk],
+  design: [{ spot: "whiteboard", action: "write" }, { spot: "noticeBoard", action: "pin" }, desk],
+  support: [{ spot: "meetingTable", action: "meet" }, desk],
+  sales: [{ spot: "chartWall", action: "study" }, { spot: "meetingTable", action: "meet" }, desk],
+  default: [{ spot: "whiteboard", action: "write" }, desk],
 };
 
 export function stepsFor(role: string, name: string): Step[] {
-  const r = role.toLowerCase();
-  const n = name.toLowerCase();
-  const key =
-    Object.keys(ROLE_STEPS).find((k) => k !== "default" && r === k) ??
-    Object.keys(ROLE_STEPS).find((k) => k !== "default" && (r.includes(k) || new RegExp(`\\b${k}\\b`).test(n)));
-  return ROLE_STEPS[key ?? "default"];
+  return ROLE_STEPS[roleKind(role, name)];
 }
