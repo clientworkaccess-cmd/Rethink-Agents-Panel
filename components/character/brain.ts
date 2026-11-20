@@ -339,6 +339,10 @@ export class CharacterBrain {
     return inp.steps[this.stepIndex % Math.max(1, inp.steps.length)]?.action ?? "type";
   }
 
+  get hasRoom() {
+    return this.nav !== null;
+  }
+
   get isAway() {
     return this.away;
   }
@@ -448,7 +452,11 @@ const POSES: Record<State, (p: Pose, c: Ctx) => void> = {
     p.hold = "prop";
     p.lookX = 0.5;
   },
-  work: (p, c) => workPose(p, c),
+  work: (p, c) => {
+    workPose(p, c);
+    // scenes without a room (lounge, team strip) have no board to face: stay turned toward the viewer
+    if (!c.brain.hasRoom) p.away = false;
+  },
   think: (p, { t }) => {
     p.armR = -2.55;
     p.armL = 0.1;

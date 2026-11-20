@@ -94,7 +94,11 @@ export function buildLayout(deskCount: number): Layout {
   const shelf: Rect = { x: width - SIDE_W + 26, y: WALL_H + 196, w: SIDE_W - 44, h: 34 };
   const floorY = WALL_H + 30;
   const spotsAt = (kind: WallItem["kind"]) =>
-    wall.filter((w) => w.kind === kind).flatMap((w) => [-1, 0, 1].map((d) => ({ x: w.x + w.w / 2 + d * 46, y: floorY + Math.abs(d) * 6 })));
+    wall
+      .filter((w) => w.kind === kind)
+      .flatMap((w) => [-1, 0, 1].map((d) => ({ x: w.x + w.w / 2 + d * 46, y: floorY + Math.abs(d) * 6 })))
+      // keep clear of the server racks and the coffee corner, which stand in front of the wall
+      .filter((p) => p.x > SIDE_W + 10 && p.x < width - SIDE_W - 10);
   const spots: Record<string, Pt[]> = {
     chartWall: spotsAt("chart"),
     whiteboard: spotsAt("whiteboard"),
