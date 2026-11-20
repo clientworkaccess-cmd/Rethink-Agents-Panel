@@ -43,7 +43,7 @@ HTML attachments are served as downloads; preview them in a sandboxed `<iframe s
 Full research: `docs/paperclip-api-research.md` and the Paperclip OpenAPI at `GET /api/openapi.json`.
 
 ## Design
-Follow `DESIGN.md` everywhere (updated 2026-11-21): white paper canvas, one vivid violet accent, Lustria + DM Sans + Martian Mono, square 4px corners, hairline borders. Characters are chubby, candy-coloured claymation creatures; the office art and agents follow that style. A dark theme is derived from it (brief 02).
+Follow `DESIGN.md` (Paperclip's design principles, adopted 2026-11-20, adapted to this panel). The single token source is `app/globals.css` (Tailwind v4): semantic colour tokens in `:root` / `[data-theme="dark"]`, motion tokens in `:root`, type ramp/radii/geometry in `@theme`. Components use token utilities only: no hex, raw px or arbitrary Tailwind values; no palette classes (they are disabled). Shared primitives live in `components/ui.tsx` (Button, IconButton, Card, Badge, Status*, Segmented, Select, PageHeader, InlineNotice, EmptyState) and `components/lists.tsx` (TaskRow, ActivityList); reuse them, add variants as props. Pixi scenes read bubble/label/status colours from the same tokens via `lib/tokens.ts`. Neutral palette, Inter + JetBrains Mono, 400/600 weights only, light + dark. Characters are chubby, candy-coloured claymation creatures; their art, animation and the office/lounge scenes are not part of the token system and stay as they are.
 
 ## Rules
 1. **Read-only toward the business.** The panel only displays data, sends chat messages and creates chat-session issues (assigned to an agent, with the panel-chat marker). It never changes agents, tasks, budgets or settings in Paperclip.

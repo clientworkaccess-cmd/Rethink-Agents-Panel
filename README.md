@@ -76,4 +76,4 @@ components/dashboard/   dashboard, plain-SVG charts, task panel
 
 - **Characters, office, lounge, icons:** original vector art drawn in code for this project (Pixi Graphics and inline SVG). No third-party art assets are used; no Kenney or other packs were needed.
 - **Sounds:** synthesised at runtime with the Web Audio API (`lib/sound.ts`); no audio files.
-- **Fonts:** self-hosted from npm via Fontsource, all under the SIL Open Font License 1.1: Lustria (`@fontsource/lustria`), DM Sans (`@fontsource/dm-sans`), Martian Mono (`@fontsource/martian-mono`). No requests to Google Fonts at runtime.
+- **Fonts:** self-hosted from npm via Fontsource, all under the SIL Open Font License 1.1: Inter (`@fontsource-variable/inter`) and JetBrains Mono (`@fontsource-variable/jetbrains-mono`). No requests to Google Fonts at runtime.

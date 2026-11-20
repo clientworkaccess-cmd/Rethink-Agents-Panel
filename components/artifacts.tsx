@@ -199,7 +199,7 @@ export function ArtifactDrawer({ artifact, onClose, mode }: { artifact: Artifact
     ? "absolute inset-0 z-30"
     : mode === "overlay"
       ? "absolute inset-y-0 right-0 z-30 max-w-full shadow-flyout"
-      : "relative h-full shrink-0 max-w-drawer";
+      : "relative h-full min-w-aside-min max-w-drawer";
 
   return (
     <aside

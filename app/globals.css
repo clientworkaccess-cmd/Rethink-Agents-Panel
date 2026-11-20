@@ -234,6 +234,7 @@
   --spacing-aside: 320px; /* right pane default */
   --spacing-aside-min: 260px;
   --spacing-aside-wide: 500px; /* task detail pane */
+  --spacing-conversation: 300px; /* chat column minimum next to the artifact pane */
   --spacing-hovercard: 280px;
   --spacing-flyout: 200px;
   --spacing-bottomnav: 56px;
@@ -281,6 +282,8 @@ body {
   color: var(--foreground);
 }
 
+/* In @layer base so component utilities (e.g. a composer that draws its own focus) can override them. */
+@layer base {
 /* Focus: a 1px bright edge plus a 3px halo at 20%, shared by inputs, buttons and custom controls. */
 :where(a, button, input, textarea, select, summary, [tabindex], [role="separator"]):focus-visible {
   outline: var(--focus-ring-stroke-width) solid var(--ring);
@@ -295,6 +298,7 @@ body {
   select {
     font-size: var(--text-base);
   }
+}
 }
 
 /* Section and navigation group labels: sans / nano / normal / uppercase, 150% leading, 0.1em, muted at 60%. */

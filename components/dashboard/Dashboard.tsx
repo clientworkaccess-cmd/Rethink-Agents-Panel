@@ -245,7 +245,7 @@ export default function Dashboard() {
                 <span className="flex-1">Agent</span>
                 <span className="hidden w-col-person md:block">Status</span>
                 <span className="hidden w-col-num text-right sm:block">Runs</span>
-                <span className="hidden w-col-num text-right sm:block">Tasks done</span>
+                <span className="hidden w-col-num text-right sm:block" title="Tasks done">Done</span>
                 <span className="w-col-time text-right">Last active</span>
                 <span className="hidden w-spark lg:block">Trend</span>
               </div>
@@ -262,7 +262,7 @@ export default function Dashboard() {
                         <span className="flex min-w-0 flex-1 items-center gap-2">
                           <Critter agent={a} size={24} head mood={act === "working" ? "busy" : act === "error" ? "error" : "idle"} />
                           <span className="truncate text-foreground">{a.name}</span>
-                          {roleLabel(a) && <span className="hidden truncate text-xs lg:inline">{roleLabel(a)}</span>}
+                          {roleLabel(a) && <span className="hidden truncate text-xs 2xl:inline">{roleLabel(a)}</span>}
                         </span>
                         <ActivityStatus activity={act} className="hidden w-col-person md:inline-flex" />
                         <Mono className="hidden w-col-num text-right text-sm leading-4 sm:block">{st?.runsThisWeek ?? "—"}</Mono>

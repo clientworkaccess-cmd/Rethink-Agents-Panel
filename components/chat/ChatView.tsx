@@ -182,7 +182,10 @@ export default function ChatView({
         }
       />
       <div className="relative flex min-h-0 flex-1">
-        <aside className="hidden w-aside-min shrink-0 flex-col border-r border-border md:flex" aria-label="Chat sessions">
+        <aside
+          className={cx("hidden w-aside-min shrink-0 flex-col border-r border-border", artifact ? "xl:flex" : "md:flex")}
+          aria-label="Chat sessions"
+        >
           <div className="flex flex-col items-center gap-1 border-b border-border px-4 py-3">
             <div className="relative h-avatar-stage w-full">
               <CrewScene members={avatarMember} bubbles={false} maxHeight={96} />
@@ -274,7 +277,7 @@ export default function ChatView({
           </nav>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-conversation flex-1 flex-col">
           {/* narrow screens: compact session picker */}
           <div className="flex items-center gap-2 border-b border-border p-2 md:hidden">
             <Critter agent={agent} size={26} head />
