@@ -263,10 +263,10 @@ export function buildRoom(layout: Layout, owners: DeskOwner[], dark: boolean, fo
   }
   // the shelf on the wall over the coffee corner
   const shX = W - SIDE_W + 18;
-  wallG.roundRect(shX, 86, SIDE_W - 36, 6, 2).fill(P.woodEdge);
-  [0xf27ca8, 0x7aa7ff, 0xf6c453, 0x5fc99a, 0xb39cff].forEach((c, k) => wallG.roundRect(shX + 6 + k * 14, 62, 10, 24, 2).fill(P.night ? mix(c, 0x000000, 0.2) : c));
-  wallG.roundRect(shX + SIDE_W - 66, 70, 14, 16, 3).fill(P.pot);
-  wallG.circle(shX + SIDE_W - 62, 64, 7).fill(P.leaf[0]).circle(shX + SIDE_W - 56, 66, 6).fill(P.leaf[2]);
+  wallG.roundRect(shX, 62, SIDE_W - 36, 6, 2).fill(P.woodEdge);
+  [0xf27ca8, 0x7aa7ff, 0xf6c453, 0x5fc99a, 0xb39cff].forEach((c, k) => wallG.roundRect(shX + 6 + k * 14, 38, 10, 24, 2).fill(P.night ? mix(c, 0x000000, 0.2) : c));
+  wallG.roundRect(shX + SIDE_W - 66, 46, 14, 16, 3).fill(P.pot);
+  wallG.circle(shX + SIDE_W - 62, 40, 7).fill(P.leaf[0]).circle(shX + SIDE_W - 56, 42, 6).fill(P.leaf[2]);
 
   // window frames are drawn above the sky
   const frames = new Graphics();
