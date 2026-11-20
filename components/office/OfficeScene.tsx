@@ -64,6 +64,7 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
     let stage: Stage | null = null;
     let cancelled = false;
     const cleanups: (() => void)[] = [];
+    const control = ctl.current;
 
     (async () => {
       const el = host.current;
@@ -349,8 +350,8 @@ export default function OfficeScene({ agents, liveRuns, onSelect, onEvent, apiRe
     return () => {
       cancelled = true;
       for (const c of cleanups) c();
-      ctl.current.chars.clear();
-      ctl.current.world = null;
+      control.chars.clear();
+      control.world = null;
       stage?.destroy();
     };
   }, []);

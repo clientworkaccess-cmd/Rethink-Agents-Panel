@@ -285,7 +285,7 @@ export class CharacterBrain {
 
   private applyOverlays(p: Pose, _inp: BrainInput, reduced: boolean): Pose {
     // look at the cursor while hovered
-    if (this.hovered && this.lookTarget && this.state !== "doze") {
+    if (this.hovered && this.lookTarget) {
       const dx = this.lookTarget.x - this.pos.x;
       const dy = this.lookTarget.y - (this.pos.y - 58);
       const d = Math.max(1, Math.hypot(dx, dy));
@@ -293,7 +293,9 @@ export class CharacterBrain {
       p.lookY = Math.max(-1, Math.min(1, (dy / d) * 1.3));
       p.away = false;
       if (p.mouth === "flat" || p.mouth === "sleep") p.mouth = "smile";
-      p.eyeOpen = Math.max(p.eyeOpen, this.state === "doze" ? 0.1 : p.eyeOpen);
+      // perk up: eyes open, slight lift
+      p.eyeOpen = Math.max(p.eyeOpen, 0.95);
+      p.squash = Math.max(p.squash, 1.03);
     }
     if (reduced) return p;
     if (this.waveLeft > 0) {
