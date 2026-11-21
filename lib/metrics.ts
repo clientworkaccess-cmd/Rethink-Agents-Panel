@@ -14,6 +14,7 @@ import {
 import type { ActivityEvent, DayPoint, Issue, Metrics } from "./types";
 
 const DAY = 86_400_000;
+const RUN_LIMIT = 500;
 const DONE = ["done", "completed"];
 const CLOSED = [...DONE, "cancelled", "canceled"];
 
@@ -52,7 +53,7 @@ export async function computeMetrics(): Promise<Metrics> {
   const [issuesRaw, artifacts, runs, activity, usage] = await Promise.all([
     listIssuesOptional(),
     listArtifactsOptional(100),
-    listRecentRuns(500),
+    listRecentRuns(RUN_LIMIT),
     getActivity(names, 40),
     getUsageThisMonth(),
   ]);
@@ -97,11 +98,19 @@ export async function computeMetrics(): Promise<Metrics> {
       }));
   }
 
+  // Paperclip 2026.1106's costs summary has no token counts; the runs carry them. Summed only when the run
+  // list is complete for the month (fewer rows than we asked for), so the figure is never an undercount.
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+  const runTokens =
+    runs && runs.length < RUN_LIMIT
+      ? runs.filter((r) => (runStart(r) ?? 0) >= monthStart && r.tokens !== null).reduce((a, r) => a + (r.tokens ?? 0), 0)
+      : null;
+  const tokens = usage?.tokens ?? (runTokens || null);
   const usageCard =
     usage && usage.costCents && usage.costCents > 0
-      ? { costCents: usage.costCents, tokens: usage.tokens }
-      : usage?.tokens
-        ? { costCents: null, tokens: usage.tokens }
+      ? { costCents: usage.costCents, tokens }
+      : tokens
+        ? { costCents: null, tokens }
         : null;
 
   return {

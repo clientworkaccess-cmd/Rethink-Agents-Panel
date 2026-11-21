@@ -2,6 +2,10 @@
 import { NextResponse } from "next/server";
 import { PaperclipError } from "./paperclip";
 
+/** Paperclip 2026.1106 rejects a comment whose clientRequestId is not a UUID, so the panel only accepts UUIDs. */
+export const isRequestId = (v: unknown): v is string =>
+  typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
 export function apiError(error: string, message: string, status: number) {
   return NextResponse.json({ error, message }, { status });
 }

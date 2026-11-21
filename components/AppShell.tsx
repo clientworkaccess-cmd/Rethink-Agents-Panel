@@ -53,12 +53,17 @@ export default function AppShell({ mock, children }: { mock: boolean; children: 
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
+    // a stored choice ("1" / "0") always wins; without one, tablets and small laptops start with the rail.
+    // The automatic default is evaluated once on mount and never written to storage.
+    const auto = matchMedia("(max-width: 1023px)").matches;
+    let saved: string | null = null;
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- per-browser preference read after mount
-      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+      saved = localStorage.getItem(COLLAPSE_KEY);
     } catch {
-      // storage blocked: stay open
+      // storage blocked: use the automatic default
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- per-browser preference read after mount
+    setCollapsed(saved === "1" ? true : saved === "0" ? false : auto);
   }, []);
 
   const toggleCollapsed = () => {

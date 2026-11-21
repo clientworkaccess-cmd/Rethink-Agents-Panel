@@ -29,10 +29,15 @@ export async function createStage(host: HTMLElement): Promise<Stage> {
   });
   io.observe(host);
   document.addEventListener("visibilitychange", sync);
+  // Pixi's resizeTo only follows window resizes; the host also changes size when the sidebar collapses or
+  // expands. Observed before any scene observer, so scenes re-fit against the new size.
+  const ro = new ResizeObserver(() => app.resize());
+  ro.observe(host);
 
   return {
     app,
     destroy: () => {
+      ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
       app.destroy(true, { children: true });
