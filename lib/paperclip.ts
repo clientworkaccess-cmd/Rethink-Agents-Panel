@@ -381,9 +381,10 @@ async function optional<T>(fn: () => Promise<T>): Promise<T | null> {
 
 export function getActivity(names: Record<string, string>, limit = 40): Promise<ActivityEvent[] | null> {
   return optional(async () => {
-    const data = await call("GET", `/companies/${companyId()}/activity?limit=${limit}`);
+    // most log rows are plumbing that toActivityEvent drops, so read more than we show
+    const data = await call("GET", `/companies/${companyId()}/activity?limit=${Math.min(200, limit * 4)}`);
     const rows = asArray(data, "activity", "events", "entries");
-    return rows.length ? compact<ActivityEvent>(rows.map((r) => toActivityEvent(r, names))) : null;
+    return rows.length ? compact<ActivityEvent>(rows.map((r) => toActivityEvent(r, names))).slice(0, limit) : null;
   });
 }
 
