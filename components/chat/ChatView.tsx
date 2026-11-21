@@ -62,6 +62,8 @@ export default function ChatView({
   const [payload, setPayload] = useState<SessionsPayload | null>(null);
   const [error, setError] = useState<"unreachable" | "other" | null>(null);
   const [fellBack, setFellBack] = useState(false);
+  /** First messages that did not post when their session was created, by issue id (shown with Retry). */
+  const [unsent, setUnsent] = useState<Record<string, { body: string; clientRequestId: string }>>({});
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState<Meta>({});
@@ -129,8 +131,9 @@ export default function ChatView({
   }, [current, payload, sessionsAvailable, busy, openLegacy]);
 
   const onCreated = useCallback(
-    (session: ChatSession, fallback: boolean) => {
+    (session: ChatSession, fallback: boolean, unsent?: { body: string; clientRequestId: string }) => {
       if (fallback) setFellBack(true);
+      if (unsent) setUnsent((u) => ({ ...u, [session.issueId]: unsent }));
       setPayload((p) =>
         p && !p.sessions.some((s) => s.issueId === session.issueId) ? { ...p, sessions: [session, ...p.sessions] } : p,
       );
@@ -309,6 +312,7 @@ export default function ChatView({
               openArtifactId={artifact?.id ?? null}
               onOpenArtifact={setArtifact}
               onCreated={onCreated}
+              initialUnsent={current === "new" ? null : (unsent[current] ?? null)}
               onFallback={(session) => onCreated(session, true)}
               onReplyingChange={setReplying}
             />

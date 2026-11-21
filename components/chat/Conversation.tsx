@@ -43,7 +43,10 @@ type Props = {
   replyTimeoutMs: number;
   openArtifactId: string | null;
   onOpenArtifact: (a: Artifact) => void;
-  onCreated: (session: ChatSession, fallback: boolean) => void;
+  /** `unsent`: the session exists but its first message did not post; the new view shows it with Retry. */
+  onCreated: (session: ChatSession, fallback: boolean, unsent?: { body: string; clientRequestId: string }) => void;
+  /** A first message that failed to post when this session was created (shown with Retry). */
+  initialUnsent?: { body: string; clientRequestId: string } | null;
   onFallback: (session: ChatSession) => void;
   onReplyingChange: (replying: boolean) => void;
 };
@@ -59,11 +62,16 @@ export default function Conversation({
   onCreated,
   onFallback,
   onReplyingChange,
+  initialUnsent = null,
 }: Props) {
   const [openError, setOpenError] = useState<"unreachable" | "other" | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loaded, setLoaded] = useState(issueId === null);
-  const [local, setLocal] = useState<Local[]>([]);
+  const [local, setLocal] = useState<Local[]>(() =>
+    initialUnsent
+      ? [{ localId: initialUnsent.clientRequestId, body: initialUnsent.body, clientRequestId: initialUnsent.clientRequestId, status: "failed", createdAt: new Date().toISOString() }]
+      : [],
+  );
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   /** My last unanswered message: id and when it was sent. */
   const [waiting, setWaiting] = useState<{ id: string; body: string; since: number } | null>(null);
@@ -190,7 +198,7 @@ export default function Conversation({
             method: "POST",
             body: JSON.stringify({ body: msg.body, clientRequestId: msg.clientRequestId }),
           });
-          onCreated(r.session, r.fallback);
+          onCreated(r.session, r.fallback, r.commentFailed ? { body: msg.body, clientRequestId: msg.clientRequestId } : undefined);
           return;
         }
         const { comment } = await api<{ comment: Comment }>(`/api/issues/${encodeURIComponent(issueId)}/comments`, {

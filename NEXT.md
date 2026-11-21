@@ -13,7 +13,7 @@ _Last updated: 2026-11-21_
   - reduced motion emulated live;
   - phone (375 px) and tablet (768 px) on all tabs;
   - 24 agents on a laptop iGPU: about 59 fps, worst frame 33 ms.
-- **Chat sessions against the real Paperclip are still not verified** (carried over from V2).
+- **Chat sessions verified against the real Paperclip 2026.1106** (2026-11-21, test issues GAM-4 and GAM-5): creating a session, posting comments, waking the agent and the reply all work. See the PR #5 description for the exact calls.
 
 ## Next
 1. Strategist and Alyan review the office-polish PR in mock mode: `PAPERCLIP_MOCK_AGENTS=24` for the camera, plus a phone viewport.

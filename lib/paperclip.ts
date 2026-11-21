@@ -290,6 +290,14 @@ export async function listChatSessions(agentId: string): Promise<SessionsPayload
   };
 }
 
+/** Markdown blockquote of a message (every line prefixed), for the session description. */
+function quote(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((l) => `> ${l}`.trimEnd())
+    .join("\n");
+}
+
 function sessionTitle(firstMessage: string): string {
   const words = firstMessage.replace(/\s+/g, " ").trim().split(" ").slice(0, 6).join(" ");
   return SESSION_TITLE_PREFIX + (words.length > 60 ? words.slice(0, 57) + "..." : words || "New chat");
@@ -321,9 +329,14 @@ export async function startChatSession(agentId: string, body: string, clientRequ
   try {
     const raw = await call("POST", `/companies/${companyId()}/issues`, {
       title: sessionTitle(body),
+      // The agent can wake as soon as the issue exists (status todo + assignee), before the first comment
+      // lands, so the description carries the full first message too.
       description:
         `Chat session opened from the Agents Panel with ${agent.name}. ` +
         "The conversation is in the comments of this issue: please reply there.\n\n" +
+        "First message:\n\n" +
+        quote(body) +
+        "\n\n" +
         SESSION_MARKER,
       assigneeAgentId: agent.id,
       status: "todo",
@@ -336,9 +349,15 @@ export async function startChatSession(agentId: string, body: string, clientRequ
     health.brokenUntil = Date.now() + BROKEN_FOR_MS;
     return fallbackToChat(agent.id, body, clientRequestId);
   }
-  const comment = await postComment(issue.id, body, clientRequestId);
+  // the issue exists now: a failed comment must not orphan it, so report it and let the UI retry
+  let comment: Comment | null = null;
+  try {
+    comment = await postComment(issue.id, body, clientRequestId);
+  } catch (err) {
+    console.warn("[panel] first comment failed on a new session", err instanceof PaperclipError ? `${err.kind} ${err.status}` : err);
+  }
   if (wakeMode() !== "off") await wakeAgent(agent.id, issue.id);
-  return { session: toSession(issue, false), comment, fallback: false };
+  return { session: toSession(issue, false), comment, fallback: false, commentFailed: comment === null };
 }
 
 /**

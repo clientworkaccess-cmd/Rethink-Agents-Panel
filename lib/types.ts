@@ -100,6 +100,8 @@ export type CreateSessionResult = {
   comment: Comment | null;
   /** True when the session issue could not be created and the message went to the `/chats` conversation instead. */
   fallback: boolean;
+  /** The session issue exists but posting the first message as a comment failed: the UI offers a retry. */
+  commentFailed?: boolean;
 };
 
 /** A human-readable activity event. */
