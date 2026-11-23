@@ -87,10 +87,10 @@ export function acknowledgement(transcript: string): string {
  * code. First match wins.
  */
 export const PROGRESS_PHRASES: { match: RegExp; say: string[] }[] = [
-  { match: /\b(call(s| log)?|ringcentral|voicemail)\b/i, say: ["Reading the call log…", "Going through the calls…"] },
-  { match: /\b(read|open|load|file|document|attachment|sheet|csv)\b/i, say: ["Reading through the files…", "Looking through the documents…"] },
-  { match: /\b(query|search|fetch|pull|api|request|look ?up|database|sql|numbers|data)\b/i, say: ["Pulling the numbers…", "Gathering the data…"] },
-  { match: /\b(writ|draft|report|summar|document_updated|save)\w*/i, say: ["Writing it up…", "Putting it together…"] },
+  { match: /\b(calls?|call log|ringcentral|voicemails?)\b/i, say: ["Reading the call log…", "Going through the calls…"] },
+  { match: /\b(writ|draft|report|summar|compos)\w*|\bdocument_updated\b/i, say: ["Writing it up…", "Putting it together…"] },
+  { match: /\b(quer|search|fetch|pull|request|look(ing)? ?up|sql|api)\w*|\b(database|numbers|data|metrics)\b/i, say: ["Pulling the numbers…", "Gathering the data…"] },
+  { match: /\b(read|open|load|scan|review|brows)\w*|\b(files?|documents?|attachments?|sheets?|csv)\b/i, say: ["Reading through the files…", "Looking through the documents…"] },
 ];
 export const GENERIC_PROGRESS = ["Still on it…", "Still working on it…", "Nearly there…"];
 

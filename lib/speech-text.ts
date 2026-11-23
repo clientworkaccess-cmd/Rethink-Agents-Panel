@@ -17,7 +17,7 @@ function inline(line: string): string {
       .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // [text](url)
       .replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1") // [text][ref]
       .replace(/<(https?:\/\/[^>\s]+)>/g, "a link") // <https://…>
-      .replace(/https?:\/\/[^\s)]+/g, "a link") // bare URLs
+      .replace(/https?:\/\/[^\s)]*[^\s).,;:!?]/g, "a link") // bare URLs (keeps the sentence's full stop)
       .replace(/<\/?[a-z][^>]*>/gi, "") // inline HTML tags
       .replace(/`+([^`]+)`+/g, "$1") // inline code
       .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "$2") // bold
@@ -148,7 +148,7 @@ export function splitForSpeech(md: string, max = 1200): string[] {
   for (const b of blocks) {
     const block = pending ? `${pending}\n\n${b}` : b;
     pending = "";
-    if (block.length < 80 && !FENCE.test(block)) {
+    if (block.length < 80 && !block.includes("\n")) {
       pending = block; // a heading or a one-liner: read it with what follows
       continue;
     }

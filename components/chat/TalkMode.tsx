@@ -4,6 +4,7 @@
 // reply (thinking character, quiet chime, latest run progress) -> read it aloud -> listen again.
 // Every turn is an ordinary chat message, so the text history stays in the chat.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { sounds } from "@/lib/sound";
 import { markdownToSpeech } from "@/lib/speech-text";
 import { acknowledgement, createNarrator } from "@/lib/voice-narration";
@@ -113,7 +114,7 @@ export default function TalkMode(props: Props) {
       stopSpeaking();
       setPhase("ending");
       if (opts.message) setError(opts.message);
-      setCaption({ who: "status", text: opts.message ?? "Ending voice mode" });
+      setCaption(opts.message ? null : { who: "status", text: "Ending voice mode" });
       if (!opts.silent) await say(opts.message ? `${opts.message} Ending voice mode.` : "Ending voice mode");
       stopAll.current.abort();
       mic.current?.close();
@@ -316,7 +317,8 @@ export default function TalkMode(props: Props) {
 
   const listening = phase === "listening" || phase === "hearing";
 
-  return (
+  // portalled to <body>: the page's enter animation leaves a transform that would trap a fixed overlay
+  return createPortal(
     <div role="dialog" aria-modal="true" aria-label={`Voice mode with ${agent.name}`} className="fade-in fixed inset-0 z-50 flex flex-col bg-background">
       <div className="flex items-center justify-between gap-2 px-4 py-3">
         <SectionLabel>Voice mode · {agent.name}</SectionLabel>
@@ -341,7 +343,7 @@ export default function TalkMode(props: Props) {
             </span>
           </p>
           {caption && (
-            <p className={caption.who === "status" ? "max-w-prose text-sm" : "max-w-prose text-xl text-foreground"}>
+            <p className={caption.who === "status" ? "max-w-prose text-sm" : "line-clamp-4 max-w-prose text-xl text-foreground"}>
               {caption.who === "you" && <span className="text-muted-foreground">You: </span>}
               {caption.text}
             </p>
@@ -371,6 +373,7 @@ export default function TalkMode(props: Props) {
           End
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

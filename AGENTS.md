@@ -19,6 +19,7 @@ browser ──> panel (frontend + its own backend, on the VPS) ──> Paperclip
 - **Paperclip** runs on the same VPS on loopback, in `local_trusted` mode, so it needs **no API token**. Requests from the VPS are trusted as admin.
 - **All Paperclip calls go through the panel's backend.** The browser never calls Paperclip directly (Paperclip has no CORS, and port 3100 must never be exposed).
 - **Data:** Paperclip's REST JSON API with polling (agents and live runs every 3–5 s; chat comments every 2–3 s while a reply is pending). No WebSocket in V1.
+- **Voice:** the panel's backend also calls the voice service on the same VPS (`VOICE_URL`, loopback `127.0.0.1:8090`; source in `services/voice/`) through `/api/voice/stt` and `/api/voice/tts`. The browser never calls it. The microphone needs HTTPS or `127.0.0.1`.
 - **Login:** one email and password from `.env` (`PANEL_EMAIL`, `PANEL_PASSWORD`), checked by the backend, then a session cookie. Every page and API route requires login. Two-factor or Paperclip `authenticated` mode come later.
 
 ## Paperclip API reference (verified 2026-11-20)

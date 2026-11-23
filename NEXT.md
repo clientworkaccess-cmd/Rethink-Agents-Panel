@@ -1,6 +1,6 @@
 # Next — current status
 
-_Last updated: 2026-11-21_
+_Last updated: 2026-11-24_
 
 ## Status
 - Panel V1, V2, the design refresh and brief 03 (chibi characters, front-facing Office) are merged into `main`.
@@ -14,12 +14,18 @@ _Last updated: 2026-11-21_
   - phone (375 px) and tablet (768 px) on all tabs;
   - 24 agents on a laptop iGPU: about 59 fps, worst frame 33 ms.
 - **Chat sessions verified against the real Paperclip 2026.1106** (2026-11-21, test issues GAM-4 and GAM-5): creating a session, posting comments, waking the agent and the reply all work. See the PR #5 description for the exact calls.
+- **Voice** on `feat/voice`: PR open into `feat/office-polish` (stacks on #5), not merged.
+  - Dictation (mic in the composer, appended at the cursor, never auto-sent), read-aloud per reply, "Read new replies aloud" (per browser, off by default).
+  - **Voice mode** (headset button): hands-free loop on `lib/voice-client.ts`. Silero VAD v5 in the browser (energy detector as fallback), 1.5 s cancel chip then auto-send, instant rule-based acknowledgement and spoken progress (`lib/voice-narration.ts`), reply read paragraph by paragraph, then listening again. Ends on End, Esc, hidden tab, 2 min of silence, or "stop listening" / "end voice mode".
+  - Checked in headless Edge with a fake microphone: mock mode, plus a local stand-in for the voice service. Not yet checked with the real service, a real microphone or a phone.
+  - **Pace:** the CRO's reply time (about 10 s or more per agent run) sets the pace of a voice conversation; the acknowledgement and progress lines cover that wait, they cannot shorten it.
 
 ## Next
 1. Strategist and Alyan review the office-polish PR in mock mode: `PAPERCLIP_MOCK_AGENTS=24` for the camera, plus a phone viewport.
 2. Merge after Alyan's OK. Part 2 on the same PR handles the phone and tablet items: the phone activity card folds to one row, phones get an "N waiting" header button, the sidebar starts as a rail below 1024 px (a stored choice always wins), and chat tables no longer wrap their headers.
 3. Still open from V2: Alyan runs the session check calls on the VPS; fix differences in the chat-session block of `lib/paperclip.ts`; check `heartbeat-runs`, `/activity`, `/costs/summary` field names against `lib/normalize.ts`.
-4. Deploy on the VPS (service + reverse proxy with TLS; port 3100 stays closed).
+4. Deploy on the VPS (service + reverse proxy with TLS; port 3100 stays closed). Set `VOICE_URL=http://127.0.0.1:8090`; the microphone works over the SSH tunnel on 127.0.0.1, and needs HTTPS on a public address.
+5. Voice: review PR (after #5). Then try dictation and Voice mode against the real voice service with a real microphone, and tune `LISTEN` (lib/voice-client.ts) and the phrases in `lib/voice-narration.ts` from real use by the owners. The server side may change after the STT/TTS benchmark; the /stt and /tts API stays the same.
 
 ## Resume point for scene work
 - **Characters:** change the look rules in `components/character/model.ts` (palettes, outfit by role, prop and emblem by role) and the drawing in `art.ts`. Never draw a part only in `rig.ts` or `Critter.tsx`, or the avatars and scenes will drift apart.
