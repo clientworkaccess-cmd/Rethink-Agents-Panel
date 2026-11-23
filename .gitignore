@@ -10,3 +10,6 @@ build/
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# Talk mode VAD assets, copied from node_modules by scripts/copy-vad-assets.mjs
+/public/vad/

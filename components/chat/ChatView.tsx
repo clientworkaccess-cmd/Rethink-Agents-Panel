@@ -11,6 +11,7 @@ import type { Agent, Artifact, ChatSession, Issue, LiveRun, SessionsPayload } fr
 import { ArtifactDrawer } from "../artifacts";
 import Critter from "../character/Critter";
 import { ActivityStatus, Button, Icon, IconButton, InlineNotice, Loading, Mono, PageHeader, SectionLabel, Unreachable, buttonClass, cx } from "../ui";
+import { AutoReadToggle, useVoice } from "../voice";
 import Conversation from "./Conversation";
 
 const CrewScene = dynamic(() => import("../character/CrewScene"), {
@@ -69,6 +70,9 @@ export default function ChatView({
   const [meta, setMeta] = useState<Meta>({});
   const [editing, setEditing] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const voice = useVoice();
+  const [talk, setTalk] = useState(false);
+  const [talkNotice, setTalkNotice] = useState<string | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- local, per-browser names read after mount
@@ -178,10 +182,25 @@ export default function ChatView({
           </span>
         }
         actions={
-          <Button variant="primary" size="sm" onClick={newChat} disabled={busy}>
-            <Icon name="plus" />
-            New chat
-          </Button>
+          <span className="flex items-center gap-1">
+            <AutoReadToggle />
+            {voice.mode !== "off" && (
+              <IconButton
+                label="Voice mode: talk hands-free"
+                onClick={() => {
+                  setTalkNotice(null);
+                  setTalk(true);
+                }}
+                disabled={current === null}
+              >
+                <Icon name="headset" />
+              </IconButton>
+            )}
+            <Button variant="primary" size="sm" onClick={newChat} disabled={busy}>
+              <Icon name="plus" />
+              New chat
+            </Button>
+          </span>
         }
       />
       <div className="relative flex min-h-0 flex-1">
@@ -298,6 +317,19 @@ export default function ChatView({
               ))}
             </select>
           </div>
+          {talkNotice && (
+            <InlineNotice
+              tone="warning"
+              className="m-3"
+              action={
+                <Button size="sm" variant="ghost" onClick={() => setTalkNotice(null)}>
+                  Dismiss
+                </Button>
+              }
+            >
+              Voice mode ended: {talkNotice}
+            </InlineNotice>
+          )}
           {current === null || (current === "new" && !sessionsAvailable) ? (
             <Loading label="Opening chat…" />
           ) : (
@@ -315,6 +347,11 @@ export default function ChatView({
               initialUnsent={current === "new" ? null : (unsent[current] ?? null)}
               onFallback={(session) => onCreated(session, true)}
               onReplyingChange={setReplying}
+              talk={talk}
+              onTalkEnd={(message) => {
+                setTalk(false);
+                if (message) setTalkNotice(message);
+              }}
             />
           )}
         </div>

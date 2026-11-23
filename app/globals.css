@@ -565,6 +565,10 @@ body {
 .dots span:nth-child(3) {
   animation-delay: calc(var(--motion-dots) / 3);
 }
+/* voice: the recording dot pulses like the typing dots */
+.rec-dot {
+  animation: pulse-dot var(--motion-dots) ease-in-out infinite;
+}
 /* character art animation (unchanged from V2) */
 .critter-bob {
   animation: critter-bob 1.8s ease-in-out infinite;
@@ -599,6 +603,7 @@ body {
   .critter-bob,
   .critter-busy,
   .critter-wave,
+  .rec-dot,
   .dots span {
     animation: none !important;
   }

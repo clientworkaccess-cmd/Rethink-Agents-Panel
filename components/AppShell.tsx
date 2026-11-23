@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTheme } from "@/lib/theme";
 import { Badge, Icon, IconButton, cx, type IconName } from "./ui";
+import type { VoiceMode } from "@/lib/voice";
+import { VoiceProvider } from "./voice";
 
 const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: "/office", label: "Office", icon: "office" },
@@ -48,7 +50,7 @@ async function logout() {
   window.location.href = "/login";
 }
 
-export default function AppShell({ mock, children }: { mock: boolean; children: React.ReactNode }) {
+export default function AppShell({ mock, voice, children }: { mock: boolean; voice: VoiceMode; children: React.ReactNode }) {
   const path = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -135,7 +137,9 @@ export default function AppShell({ mock, children }: { mock: boolean; children: 
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-bottomnav md:pb-0">
-        <div className="min-h-0 flex-1">{children}</div>
+        <div className="min-h-0 flex-1">
+          <VoiceProvider mode={voice}>{children}</VoiceProvider>
+        </div>
       </div>
 
       {/* mobile: opaque bottom navigation */}

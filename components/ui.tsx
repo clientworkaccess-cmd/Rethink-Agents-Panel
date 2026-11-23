@@ -100,6 +100,10 @@ const ICONS = {
   moon: "M13.5 9.6A5.5 5.5 0 1 1 6.4 2.5a4.5 4.5 0 0 0 7.1 7.1z",
   soundOn: "M2.5 6.3h2.4l3-2.4v8.2l-3-2.4H2.5zM10.4 6a2.7 2.7 0 0 1 0 4M12.1 4.3a5 5 0 0 1 0 7.4",
   soundOff: "M2.5 6.3h2.4l3-2.4v8.2l-3-2.4H2.5zM10.6 6.3l3.4 3.4M14 6.3l-3.4 3.4",
+  mic: "M8 2a2 2 0 0 0-2 2v3.5a2 2 0 0 0 4 0V4a2 2 0 0 0-2-2M4 7.5a4 4 0 0 0 8 0M8 11.5V14M5.5 14h5",
+  micOff: "M8 2a2 2 0 0 0-2 2v3.5a2 2 0 0 0 4 0V4a2 2 0 0 0-2-2M4 7.5a4 4 0 0 0 8 0M8 11.5V14M5.5 14h5M2.5 2.5l11 11",
+  stop: "M4.5 4.5h7v7h-7z",
+  headset: "M3 10V8a5 5 0 0 1 10 0v2M3 10h2.5v3.5H3zM10.5 10H13v3.5h-2.5z",
 } as const;
 export type IconName = keyof typeof ICONS;
 
