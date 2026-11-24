@@ -1,4 +1,4 @@
-import { apiError, handle } from "@/lib/api";
+import { apiError, handle, isRequestId } from "@/lib/api";
 import { fallbackToChat } from "@/lib/paperclip";
 import type { NextRequest } from "next/server";
 
@@ -13,8 +13,8 @@ export function POST(req: NextRequest, { params }: Ctx) {
     const { body, clientRequestId } = (await req.json().catch(() => ({}))) as { body?: unknown; clientRequestId?: unknown };
     const text = typeof body === "string" && body.trim() ? body.trim() : null;
     if (text && text.length > 20_000) return apiError("bad_request", "Message is too long.", 400);
-    const crid = typeof clientRequestId === "string" && /^[A-Za-z0-9-]{8,64}$/.test(clientRequestId) ? clientRequestId : null;
-    if (text && !crid) return apiError("bad_request", "Missing clientRequestId.", 400);
+    const crid = isRequestId(clientRequestId) ? clientRequestId : null;
+    if (text && !crid) return apiError("bad_request", "clientRequestId must be a UUID.", 400);
     return fallbackToChat((await params).agentId, text, crid);
   });
 }

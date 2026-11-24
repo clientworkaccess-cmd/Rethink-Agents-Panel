@@ -1,4 +1,4 @@
-import { apiError, handle } from "@/lib/api";
+import { apiError, handle, isRequestId } from "@/lib/api";
 import { listChatSessions, startChatSession } from "@/lib/paperclip";
 import type { NextRequest } from "next/server";
 
@@ -20,8 +20,8 @@ export function POST(req: NextRequest, { params }: Ctx) {
     const { body, clientRequestId } = (await req.json().catch(() => ({}))) as { body?: unknown; clientRequestId?: unknown };
     if (typeof body !== "string" || !body.trim() || body.length > 20_000)
       return apiError("bad_request", "Message is empty or too long.", 400);
-    if (typeof clientRequestId !== "string" || !/^[A-Za-z0-9-]{8,64}$/.test(clientRequestId))
-      return apiError("bad_request", "Missing clientRequestId.", 400);
+    if (!isRequestId(clientRequestId))
+      return apiError("bad_request", "clientRequestId must be a UUID.", 400);
     return startChatSession((await params).agentId, body.trim(), clientRequestId);
   });
 }

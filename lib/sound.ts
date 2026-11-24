@@ -37,6 +37,8 @@ export const sounds = {
     setTimeout(() => blip(880, 0.16, 0.06), 110);
   },
   type: () => blip(1800 + Math.random() * 600, 0.025, 0.012, "square"),
+  /** Voice mode, waiting for a reply: a soft, quiet chime. */
+  tick: () => blip(880, 0.18, 0.015, "sine", 0.98),
 };
 
 const KEY = "panel-sound";
