@@ -1,4 +1,4 @@
-// Server side of voice: talks to the voice service (faster-whisper STT + Piper TTS, services/voice/) on the VPS.
+// Server side of voice: talks to the voice service (Parakeet STT via sherpa-onnx + Piper TTS, services/voice/) on the VPS.
 // Never import from client components. The service URL comes only from VOICE_URL, and only its fixed /stt and
 // /tts paths are called, so the routes can never be used as an open proxy.
 

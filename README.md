@@ -58,7 +58,7 @@ Set `PAPERCLIP_MOCK=0`, `PAPERCLIP_COMPANY_ID` and the login values, and run on 
 
 ## Voice
 
-The voice service runs on the VPS next to the panel, reachable only at `127.0.0.1:8090` (source and deploy notes in `services/voice/`: faster-whisper for speech-to-text, Piper for text-to-speech). The browser never calls it: the panel's routes `POST /api/voice/stt` (multipart `file`, 10 MB max, 60 s timeout) and `POST /api/voice/tts` (`{text}`, 6000 characters max; Markdown is stripped first: code blocks dropped, tables read as "Table omitted", links read as their text) sit behind the login like every other route and only ever call `VOICE_URL` + `/stt` or `/tts`.
+The voice service runs on the VPS next to the panel, reachable only at `127.0.0.1:8090` (source and deploy notes in `services/voice/`: Parakeet TDT 0.6B for speech-to-text with an editable custom-word list, Piper for text-to-speech). The browser never calls it: the panel's routes `POST /api/voice/stt` (multipart `file`, 10 MB max, 60 s timeout) and `POST /api/voice/tts` (`{text}`, 6000 characters max; Markdown is stripped first: code blocks dropped, tables read as "Table omitted", links read as their text) sit behind the login like every other route and only ever call `VOICE_URL` + `/stt` or `/tts`.
 
 **The microphone needs a secure context.** Browsers only allow it on HTTPS or on `127.0.0.1`/`localhost`. Opening the panel at `http://127.0.0.1:3400` through the SSH tunnel is fine; a public deploy needs HTTPS (the reverse proxy with TLS in NEXT.md). On plain HTTP the mic button explains this instead of recording.
 
@@ -92,7 +92,7 @@ components/chat/        lobby, chat view with sessions, conversation, TalkMode.t
 components/voice.tsx    voice UI: dictation, read-aloud buttons, "Read new replies aloud"
 lib/voice-client.ts     browser voice primitives: record, listen (VAD), transcribe, speak, stop
 lib/voice.ts            server side of voice (VOICE_URL, the two service calls); lib/speech-text.ts strips Markdown
-services/voice/         the voice service (FastAPI, faster-whisper, Piper) as deployed on the VPS
+services/voice/         the voice service (FastAPI, Parakeet via sherpa-onnx, Piper) as deployed on the VPS
 components/dashboard/   dashboard, plain-SVG charts, task panel
 ```
 
