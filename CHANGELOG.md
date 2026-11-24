@@ -1,5 +1,6 @@
 # Changelog
 
+- 2026-11-24 — CRO character: fixed side-parted hair and clean-shaven (the random quiff + beard read as a turban).
 - 2026-11-24 — Deployed on the VPS: service `agents-panel` on 127.0.0.1:3400, served at https://unithub.gammaincome.com/agents via the unithub nginx site.
 - 2026-11-24 — Panel can be served under a sub-path (`BASE_PATH=/agents`) behind nginx: basePath, prefixed fetches/redirects/downloads, cookie path, proxy redirects. Tested in mock mode.
 - 2026-11-20 — Brief 03 character and office redesign: chibi characters (one look per agent from id + role, shared art for Pixi rig and SVG avatars, role props and floating emblems), front-facing Office that grows with the team (tagged cubicles, chart wall, whiteboard, notice board, meeting table with screen, server racks; day and night), walking that never crosses furniture or other cubicles, PAPERCLIP_MOCK_AGENTS mock knob.

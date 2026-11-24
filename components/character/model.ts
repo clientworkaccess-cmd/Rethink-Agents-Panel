@@ -141,10 +141,13 @@ export function lookFor(agent: { id: string; role: string; name: string }): Look
   // greys, blondes and dyed colours are rarer, so most teams read as a varied but natural group
   const hairIdx = hash(`${agent.id}:hair`) % 11;
   const hair = HAIR[hairIdx < 8 ? hairIdx : hairIdx - 8];
-  const style = pick(["side", "crop", "buzz", "curly", "bob", "long", "ponytail", "bun", "quiff"] as const, "style");
+  // The CRO has a fixed look matching its reference art: neat side-parted hair, clean-shaven.
+  const style: HairStyle =
+    kind === "cro" ? "side" : pick(["side", "crop", "buzz", "curly", "bob", "long", "ponytail", "bun", "quiff"] as const, "style");
   const shortHair = style === "side" || style === "crop" || style === "buzz" || style === "quiff" || style === "curly";
   const fh = hash(`${agent.id}:facial`) % 7;
-  const facial: FacialHair = shortHair && fh === 0 ? "beard" : shortHair && fh === 1 ? "moustache" : "none";
+  const facial: FacialHair =
+    kind === "cro" ? "none" : shortHair && fh === 0 ? "beard" : shortHair && fh === 1 ? "moustache" : "none";
   const top =
     formal ? pick(FORMAL, "top") : outfit === "blazer" ? pick([...FORMAL, ...CASUAL.slice(0, 4)], "top") : pick(CASUAL, "top");
   const shirt = outfit === "turtleneck" ? top : pick(outfit === "shirt" || outfit === "vest" ? SHIRTS : SHIRTS.slice(0, 4), "shirt");
