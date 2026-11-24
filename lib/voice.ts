@@ -81,10 +81,10 @@ export async function transcribeAudio(audio: Blob, ext: string): Promise<{ text:
   return { text: data.text.trim(), audioSeconds: num(data.audioSeconds), seconds: num(data.seconds) };
 }
 
-export async function synthesizeSpeech(text: string): Promise<Response> {
+export async function synthesizeSpeech(text: string, voice: "female" | "male" = "female"): Promise<Response> {
   return call(
     "/tts",
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) },
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, voice }) },
     TTS_TIMEOUT_MS,
   );
 }

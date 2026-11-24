@@ -11,7 +11,7 @@ import type { Agent, Artifact, ChatSession, Issue, LiveRun, SessionsPayload } fr
 import { ArtifactDrawer } from "../artifacts";
 import Critter from "../character/Critter";
 import { ActivityStatus, Button, Icon, IconButton, InlineNotice, Loading, Mono, PageHeader, SectionLabel, Unreachable, buttonClass, cx } from "../ui";
-import { AutoReadToggle, useVoice } from "../voice";
+import { AutoReadToggle, ReplyVoiceToggle, useVoice } from "../voice";
 import Conversation from "./Conversation";
 
 const CrewScene = dynamic(() => import("../character/CrewScene"), {
@@ -184,6 +184,7 @@ export default function ChatView({
         actions={
           <span className="flex items-center gap-1">
             <AutoReadToggle />
+            <ReplyVoiceToggle />
             {voice.mode !== "off" && (
               <IconButton
                 label="Voice mode: talk hands-free"

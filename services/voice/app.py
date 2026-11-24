@@ -33,7 +33,10 @@ def hw_mtime():
 
 lock = threading.Lock()
 stt, stt_mtime = build(), hw_mtime()
-voice = PiperVoice.load(os.getenv("PIPER_VOICE", "/models/piper/en_US-lessac-medium.onnx"))
+# Reply voices, both loaded at start (about 100 MB each). The panel sends "female" (default) or "male".
+VOICES = {"female": os.getenv("PIPER_VOICE_FEMALE", "/models/piper/en_US-hfc_female-medium.onnx"),
+          "male": os.getenv("PIPER_VOICE_MALE", "/models/piper/en_US-ryan-high.onnx")}
+voices = {k: PiperVoice.load(v) for k, v in VOICES.items()}
 app = FastAPI()
 
 def recognizer():
@@ -55,7 +58,7 @@ def decode_16k(data: bytes) -> np.ndarray:
 @app.get("/health")
 def health():
     words = [l.split(" :")[0].strip() for l in open(HOTWORDS_FILE)] if os.path.isfile(HOTWORDS_FILE) else []
-    return {"ok": True, "stt": "parakeet-tdt-0.6b-v2-int8", "hotwords": [w for w in words if w]}
+    return {"ok": True, "stt": "parakeet-tdt-0.6b-v2-int8", "voices": {k: os.path.basename(v) for k, v in VOICES.items()}, "hotwords": [w for w in words if w]}
 
 @app.post("/stt")
 async def transcribe(file: UploadFile = File(...)):
@@ -80,6 +83,7 @@ def tts(payload: dict = Body(...)):
     text = str(payload.get("text") or "").strip()[:6000]
     if not text:
         raise HTTPException(400, "empty text")
+    voice = voices.get(str(payload.get("voice") or "female"), voices["female"])
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         if hasattr(voice, "synthesize_wav"):

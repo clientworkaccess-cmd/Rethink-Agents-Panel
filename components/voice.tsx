@@ -16,6 +16,9 @@ import {
   type Recording,
   type SpeechState,
   type VoiceEngine,
+  VOICE_KEY,
+  replyVoice,
+  type ReplyVoice,
 } from "@/lib/voice-client";
 import { Button, Icon, IconButton, Mono, cx } from "./ui";
 
@@ -79,6 +82,50 @@ export function AutoReadToggle() {
     >
       <Icon name={on ? "soundOn" : "soundOff"} />
       <span className="hidden lg:inline">Read new replies aloud</span>
+    </Button>
+  );
+}
+
+const voiceListeners = new Set<() => void>();
+
+/** The reply voice (per browser): female by default, or male. */
+export function useReplyVoice(): [ReplyVoice, (v: ReplyVoice) => void] {
+  const v = useSyncExternalStore(
+    (fn) => {
+      voiceListeners.add(fn);
+      return () => voiceListeners.delete(fn);
+    },
+    replyVoice,
+    () => "female" as ReplyVoice,
+  );
+  const set = useCallback((next: ReplyVoice) => {
+    try {
+      localStorage.setItem(VOICE_KEY, next);
+    } catch {
+      // storage blocked
+    }
+    voiceListeners.forEach((l) => l());
+  }, []);
+  return [v, set];
+}
+
+/** Switches the reply voice; shown next to "Read new replies aloud". Hidden in mock mode (the browser speaks there). */
+export function ReplyVoiceToggle() {
+  const { mode } = useVoice();
+  const [v, setV] = useReplyVoice();
+  if (mode !== "service") return null;
+  const next: ReplyVoice = v === "female" ? "male" : "female";
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      title={`Reply voice: ${v}. Click for the ${next} voice.`}
+      onClick={() => {
+        setV(next);
+        stopSpeaking();
+      }}
+    >
+      <span className="text-xs">Voice: {v === "female" ? "Female" : "Male"}</span>
     </Button>
   );
 }

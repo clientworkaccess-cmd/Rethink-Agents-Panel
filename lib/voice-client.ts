@@ -52,12 +52,23 @@ export async function transcribe(audio: Blob, signal?: AbortSignal): Promise<str
   return typeof data?.text === "string" ? data.text.trim() : "";
 }
 
-/** Text (Markdown) to a WAV blob through POST /api/voice/tts; null when nothing in it is worth reading. */
+/** The two reply voices the service offers. "female" (the default) and "male"; per browser, in localStorage. */
+export type ReplyVoice = "female" | "male";
+export const VOICE_KEY = "panel-voice-voice";
+export function replyVoice(): ReplyVoice {
+  try {
+    return localStorage.getItem(VOICE_KEY) === "male" ? "male" : "female";
+  } catch {
+    return "female";
+  }
+}
+
+/** Text (Markdown) to a WAV blob through POST /api/voice/tts, in the chosen reply voice; null when nothing in it is worth reading. */
 export async function synthesize(text: string, signal?: AbortSignal): Promise<Blob | null> {
   const res = await voiceFetch("/api/voice/tts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, voice: replyVoice() }),
     signal,
   });
   if (res.status === 204) return null;
