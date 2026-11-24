@@ -3,7 +3,7 @@
 // `issueId === null` is a new, not yet created session: the first message creates it (POST .../sessions).
 // If a new session gets no reply in time (and no run is going), the chat falls back to the agent's single /chats conversation.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { propFor } from "@/components/character/model";
+import { propFor, type Prop } from "@/components/character/model";
 import { api, isUnreachable, newRequestId, timeAgo, usePoll } from "@/lib/client";
 import type { Agent, Artifact, ChatSession, Comment, CreateSessionResult, RunProgress } from "@/lib/types";
 import { ArtifactChip } from "../artifacts";
@@ -15,7 +15,19 @@ const SLOW_MS = 15_000;
 
 type Local = { localId: string; body: string; clientRequestId: string; status: "sending" | "failed"; createdAt: string };
 
-const EXAMPLES: Record<string, string[]> = {
+// Keyed by Prop (components/character/model.ts). Must cover every Prop; unknown ones fall back to `laptop`.
+const EXAMPLES: Record<Prop, string[]> = {
+  briefcase: [
+    "Which facility is losing the most leads right now, and where?",
+    "How did Catawba's calls and replies look last week?",
+    "Write a short revenue summary for this week as a document.",
+  ],
+  clipboard: ["What's on your list today?", "Which open tasks are overdue?", "Summarise what changed since yesterday."],
+  calculator: [
+    "How is revenue tracking against last month?",
+    "Which facility has the highest cost per move-in?",
+    "Write a short finance summary for this week.",
+  ],
   tablet: [
     "How is occupancy trending this month?",
     "Which unit sizes should we look at re-pricing?",
@@ -239,7 +251,7 @@ export default function Conversation({
   if (fallingBack) return <Loading label="Switching to the main conversation…" />;
 
   const empty = loaded && comments.length === 0 && local.length === 0;
-  const examples = EXAMPLES[propFor(agent.role, agent.name)];
+  const examples = EXAMPLES[propFor(agent.role, agent.name)] ?? EXAMPLES.laptop;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

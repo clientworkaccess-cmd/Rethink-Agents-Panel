@@ -1,5 +1,6 @@
 # Changelog
 
+- 2026-11-24 — Fix: chat page crashed for the CRO (and any agent with a briefcase/clipboard/calculator prop): example questions were missing for the props added in brief 03. EXAMPLES now typed Record<Prop> with a fallback.
 - 2026-11-24 — CRO character: fixed side-parted hair and clean-shaven (the random quiff + beard read as a turban).
 - 2026-11-24 — Deployed on the VPS: service `agents-panel` on 127.0.0.1:3400, served at https://unithub.gammaincome.com/agents via the unithub nginx site.
 - 2026-11-24 — Panel can be served under a sub-path (`BASE_PATH=/agents`) behind nginx: basePath, prefixed fetches/redirects/downloads, cookie path, proxy redirects. Tested in mock mode.
