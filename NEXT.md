@@ -1,6 +1,6 @@
 # Next — current status
 
-_Last updated: 2026-11-21_
+_Last updated: 2026-11-24_
 
 ## Status
 - Panel V1, V2 and the design refresh are merged into `main`.
@@ -20,7 +20,7 @@ _Last updated: 2026-11-21_
 1. Strategist and Alyan review the brief 03 PR visually in mock mode (try `PAPERCLIP_MOCK_AGENTS=1`, `6`, `14`), in light and dark. Open questions are in the PR.
 2. Merge after Alyan's OK.
 3. Still open from V2: Alyan runs the session check calls on the VPS; fix differences in the chat-session block of `lib/paperclip.ts`; check `heartbeat-runs`, `/activity`, `/costs/summary` field names against `lib/normalize.ts`.
-4. Deploy on the VPS (service + reverse proxy with TLS; port 3100 stays closed).
+4. ✅ Deployed (see Status). Next: tell the Unit Hub developer about the `/agents` block; consider 2FA or an IP allowlist, since the panel is public behind the .env login only.
 
 ## Resume point for scene work
 - **Characters:** change the look rules in `components/character/model.ts` (palettes, outfit by role, prop and emblem by role) and the drawing in `art.ts`. Never draw a part only in `rig.ts` or `Critter.tsx`, or the avatars and scenes will drift apart.
