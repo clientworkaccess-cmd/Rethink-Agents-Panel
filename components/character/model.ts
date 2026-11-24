@@ -137,11 +137,11 @@ export function lookFor(agent: { id: string; role: string; name: string }): Look
   const kind = roleKind(agent.role, agent.name);
   const outfit = pick(OUTFITS[kind], "outfit");
   const formal = outfit === "suit" || outfit === "vest";
-  const skin = pick(SKIN, "skin");
+  // The CRO has a fixed look matching its reference art: light skin, brown side-parted hair, clean-shaven.
+  const skin = kind === "cro" ? SKIN[1] : pick(SKIN, "skin");
   // greys, blondes and dyed colours are rarer, so most teams read as a varied but natural group
   const hairIdx = hash(`${agent.id}:hair`) % 11;
-  const hair = HAIR[hairIdx < 8 ? hairIdx : hairIdx - 8];
-  // The CRO has a fixed look matching its reference art: neat side-parted hair, clean-shaven.
+  const hair = kind === "cro" ? HAIR[2] : HAIR[hairIdx < 8 ? hairIdx : hairIdx - 8];
   const style: HairStyle =
     kind === "cro" ? "side" : pick(["side", "crop", "buzz", "curly", "bob", "long", "ponytail", "bun", "quiff"] as const, "style");
   const shortHair = style === "side" || style === "crop" || style === "buzz" || style === "quiff" || style === "curly";
