@@ -1,6 +1,7 @@
 "use client";
 // Artifact cards and the artifact drawer (Markdown, sandboxed HTML, image/PDF preview, download).
 import { useCallback, useEffect, useRef, useState } from "react";
+import { withBase } from "@/lib/base";
 import { api, formatBytes, timeAgo } from "@/lib/client";
 import type { Artifact } from "@/lib/types";
 import { EmptyState, Icon, IconButton, Loading, Markdown, Mono, buttonClass, cardClass, cx } from "./ui";
@@ -19,12 +20,12 @@ export function artifactKind(a: Artifact): Kind {
 const KIND_LABEL: Record<Kind, string> = { markdown: "Document", html: "HTML page", image: "Image", pdf: "PDF", file: "File" };
 
 function contentUrl(a: Artifact) {
-  return `/api/attachments/${encodeURIComponent(a.attachmentId ?? "")}/content`;
+  return withBase(`/api/attachments/${encodeURIComponent(a.attachmentId ?? "")}/content`);
 }
 
 export function downloadUrl(a: Artifact) {
   return a.source === "document"
-    ? `/api/issues/${encodeURIComponent(a.issueId ?? "")}/documents/${encodeURIComponent(a.documentKey ?? "")}?download=1`
+    ? withBase(`/api/issues/${encodeURIComponent(a.issueId ?? "")}/documents/${encodeURIComponent(a.documentKey ?? "")}?download=1`)
     : `${contentUrl(a)}?download=1`;
 }
 

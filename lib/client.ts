@@ -1,6 +1,7 @@
 "use client";
 // Browser helpers: calls the panel's own /api routes only (never Paperclip).
 import { useEffect, useRef } from "react";
+import { stripBase, withBase } from "./base";
 
 export class ApiFailure extends Error {
   constructor(
@@ -15,14 +16,14 @@ export class ApiFailure extends Error {
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
+    res = await fetch(withBase(path), { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...init?.headers } });
   } catch {
     throw new ApiFailure("network", "The panel server is not reachable.", 0);
   }
   if (res.status === 401) {
     // full reload on purpose: drop all client state when the session ends
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+    window.location.href = withBase(`/login?next=${encodeURIComponent(stripBase(window.location.pathname) + window.location.search)}`);
     throw new ApiFailure("unauthorized", "Please log in.", 401);
   }
   const data = (await res.json().catch(() => null)) as (T & { error?: string; message?: string }) | null;

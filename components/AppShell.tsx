@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { withBase } from "@/lib/base";
 import { useTheme } from "@/lib/theme";
 import { Badge, Icon, IconButton, cx, type IconName } from "./ui";
 
@@ -42,10 +43,10 @@ export function ThemeToggle({ className }: { className?: string }) {
 }
 
 async function logout() {
-  await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+  await fetch(withBase("/api/auth/logout"), { method: "POST" }).catch(() => {});
   // full reload on purpose: drop all client state on logout
   // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-  window.location.href = "/login";
+  window.location.href = withBase("/login");
 }
 
 export default function AppShell({ mock, children }: { mock: boolean; children: React.ReactNode }) {

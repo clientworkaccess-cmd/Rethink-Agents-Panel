@@ -25,6 +25,7 @@ cp .env.example .env   # then fill in the values below
 | `PAPERCLIP_COMPANY_ID` | The Paperclip company to show |
 | `PANEL_EMAIL`, `PANEL_PASSWORD` | The single login (compared server-side) |
 | `SESSION_SECRET` | Long random string that signs the session cookie, e.g. `openssl rand -hex 32` |
+| `BASE_PATH` | Sub-path the panel is served under, e.g. `/agents` behind nginx (`https://<domain>/agents`). Empty = root. **Read at build time**: set it before `npm run build`. On Windows Git Bash prefix with `MSYS_NO_PATHCONV=1` |
 | `PAPERCLIP_MOCK` | `1` = built-in example data instead of Paperclip, `0` = real Paperclip |
 | `HOST`, `PORT` | Where the panel listens, default `127.0.0.1:3400` |
 | `PANEL_CHAT_WAKEUP` | Optional. `create` (default): wake the agent once when a chat session is created. `every`: also after each message. `off`: never |

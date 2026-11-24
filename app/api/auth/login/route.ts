@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { COOKIE_PATH } from "@/lib/base";
 import { checkCredentials } from "@/lib/auth";
 import { createSession, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     sameSite: "lax",
     secure: https,
-    path: "/",
+    path: COOKIE_PATH,
     maxAge: SESSION_MAX_AGE,
   });
   return res;

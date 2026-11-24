@@ -9,7 +9,7 @@ export async function proxy(req: NextRequest) {
   const authed = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
 
   if (PUBLIC.has(pathname)) {
-    if (authed && pathname === "/login") return NextResponse.redirect(new URL("/office", req.url));
+    if (authed && pathname === "/login") return NextResponse.redirect(at(req, "/office"));
     return NextResponse.next();
   }
   if (authed) return NextResponse.next();
@@ -17,9 +17,17 @@ export async function proxy(req: NextRequest) {
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "unauthorized", message: "Please log in." }, { status: 401 });
   }
-  const login = new URL("/login", req.url);
+  const login = at(req, "/login");
   if (pathname !== "/") login.searchParams.set("next", pathname + search);
   return NextResponse.redirect(login);
+}
+
+/** Same-origin URL for an app path, keeping the basePath (req.nextUrl.pathname excludes it). */
+function at(req: NextRequest, path: string) {
+  const url = req.nextUrl.clone();
+  url.pathname = path;
+  url.search = "";
+  return url;
 }
 
 export const config = {
