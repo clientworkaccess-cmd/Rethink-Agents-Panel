@@ -1,8 +1,9 @@
 import AppShell from "@/components/AppShell";
+import { voiceMode } from "@/lib/voice";
 
-// Reads PAPERCLIP_MOCK at request time, not at build time.
+// Reads PAPERCLIP_MOCK and VOICE_URL at request time, not at build time.
 export const dynamic = "force-dynamic";
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell mock={process.env.PAPERCLIP_MOCK === "1"}>{children}</AppShell>;
+  return <AppShell mock={process.env.PAPERCLIP_MOCK === "1"} voice={voiceMode()}>{children}</AppShell>;
 }

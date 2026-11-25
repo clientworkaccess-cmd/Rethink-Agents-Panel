@@ -5,11 +5,12 @@
 // Light theme = daytime (sun in the window); dark theme = night (moon, stars, glowing lamps and monitors).
 // Ambient life: clock, swaying plants, monitor flicker, blinking rack LEDs, scrolling console, live chart on
 // the meeting screen, coffee steam, twinkling stars. All of it stops under reduced motion except the clock.
-import { Container, Graphics, Text } from "pixi.js";
+import { Container, Graphics, Rectangle, Text } from "pixi.js";
 import { hash, mix } from "@/components/character/model";
 import { CUB_W, CUBE, SIDE_W, WALL_H, type Layout } from "./world";
 
-export type DeskOwner = { id: string; name: string; color: number } | null;
+/** `label` is the tag text, already made unique by the scene (duplicates get " 2", " 3"). */
+export type DeskOwner = { id: string; label: string; color: number } | null;
 
 type Palette = {
   night: boolean;
@@ -135,7 +136,14 @@ const glow = (g: Graphics, x: number, y: number, r: number, color: number, a: nu
   for (let i = 0; i < rings; i++) g.circle(x, y, r * (1 - i / rings)).fill({ color, alpha: a });
 };
 
-export function buildRoom(layout: Layout, owners: DeskOwner[], dark: boolean, fonts: { mono: string }): Room {
+export function buildRoom(
+  layout: Layout,
+  owners: DeskOwner[],
+  dark: boolean,
+  fonts: { mono: string },
+  /** Clicking a tag of an owned desk (opens the same card as clicking the agent). */
+  onTag?: (slot: number, phase: "down" | "tap") => void,
+): Room {
   const P = dark ? NIGHT : DAY;
   const W = layout.width;
   const H = layout.height;
@@ -377,23 +385,32 @@ export function buildRoom(layout: Layout, owners: DeskOwner[], dark: boolean, fo
       panel.roundRect(noteX + 56, pTop + 16, 20, 24, 2).fill(0xffffff).stroke({ width: 1, color: P.panelBase });
       panel.rect(noteX + 59, pTop + 19, 14, 10).fill(owner ? owner.color : P.metal);
     }
-    const name = owner ? owner.name.toUpperCase() : "OPEN";
+    const name = owner ? owner.label.toUpperCase() : "OPEN";
     const label = new Text({
       text: name.length > 18 ? name.slice(0, 17) + "…" : name,
-      style: { fontFamily: fonts.mono, fontSize: 10, fill: P.tagFg, letterSpacing: 0.6, fontWeight: "600" },
+      style: { fontFamily: fonts.mono, fontSize: 11, fill: P.tagFg, letterSpacing: 0.6, fontWeight: "600" },
       resolution: 2,
     });
     label.anchor.set(0, 0.5);
     // the web font may not be measured yet on first paint: size the tag for the mono advance width too
-    const tagW = Math.max(label.width, label.text.length * 6.7) + 30;
+    const tagW = Math.max(label.width, label.text.length * 7.4) + 30;
     const tag = new Graphics();
-    tag.roundRect(-tagW / 2, pTop - 11, tagW, 20, 6).fill(P.tagBg).stroke({ width: 1, color: P.tagLine });
+    tag.roundRect(-tagW / 2, pTop - 12, tagW, 22, 6).fill(P.tagBg).stroke({ width: 1, color: P.tagLine });
     label.position.set(-tagW / 2 + 20, pTop - 1);
     label.alpha = owner ? 1 : 0.5;
     const dot = new Graphics();
     dot.position.set(-tagW / 2 + 11, pTop - 1);
     dots.push(dot);
-    const panelC = prop(s.y + CUBE.panelY, panel, tag, dot, label);
+    const tagC = new Container();
+    tagC.addChild(tag, dot, label);
+    if (owner && onTag) {
+      tagC.eventMode = "static";
+      tagC.cursor = "pointer";
+      tagC.hitArea = new Rectangle(-tagW / 2, pTop - 12, tagW, 22);
+      tagC.on("pointerdown", () => onTag(i, "down"));
+      tagC.on("pointertap", () => onTag(i, "tap"));
+    }
+    const panelC = prop(s.y + CUBE.panelY, panel, tagC);
     panelC.position.set(s.x, s.y);
 
     // side partitions (with a soft light strip at night)

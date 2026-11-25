@@ -417,6 +417,20 @@ body {
 .md th {
   font-weight: var(--font-weight-semibold);
   color: var(--foreground);
+  white-space: nowrap;
+}
+.md td {
+  word-break: normal;
+  overflow-wrap: normal;
+  min-width: 8ch;
+  max-width: 32ch;
+}
+/* below sm (Tailwind's 40rem): tighter cell gap so tables fit a phone; wider tables scroll inside the block */
+@media (max-width: 39.98rem) {
+  .md th,
+  .md td {
+    padding-right: calc(var(--spacing) * 3);
+  }
 }
 .md hr {
   border: 0;
@@ -551,6 +565,10 @@ body {
 .dots span:nth-child(3) {
   animation-delay: calc(var(--motion-dots) / 3);
 }
+/* voice: the recording dot pulses like the typing dots */
+.rec-dot {
+  animation: pulse-dot var(--motion-dots) ease-in-out infinite;
+}
 /* character art animation (unchanged from V2) */
 .critter-bob {
   animation: critter-bob 1.8s ease-in-out infinite;
@@ -585,6 +603,7 @@ body {
   .critter-bob,
   .critter-busy,
   .critter-wave,
+  .rec-dot,
   .dots span {
     animation: none !important;
   }

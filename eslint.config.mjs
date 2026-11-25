@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Talk mode VAD assets copied from node_modules
+    "public/vad/**",
   ]),
 ]);
 

@@ -186,12 +186,21 @@ function idFromContentPath(path: string | null): string | null {
 }
 
 function keyFromPath(path: string | null): string | null {
-  const m = path?.match(/documents\/([^/?#]+)/);
+  // ".../documents/<key>" (API path) or "...#document-<key>" (Paperclip 2026.1106 UI href, contentPath null)
+  const m = path?.match(/documents\/([^/?#]+)/) ?? path?.match(/#document-([^/?#]+)$/);
   return m ? decodeURIComponent(m[1]) : null;
 }
 
 /** A finished or running heartbeat run, for the dashboard charts. */
-export type RunRecord = { id: string; agentId: string | null; status: string; startedAt: string | null; finishedAt: string | null };
+export type RunRecord = {
+  id: string;
+  agentId: string | null;
+  status: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  /** Input + cached input + output tokens reported on the run (Paperclip 2026.1106 sends them as strings). */
+  tokens: number | null;
+};
 
 export function toRunRecord(o: Obj): RunRecord | null {
   const id = str(o, "id", "runId");
@@ -202,6 +211,7 @@ export function toRunRecord(o: Obj): RunRecord | null {
     status: (str(o, "status") ?? "unknown").toLowerCase(),
     startedAt: str(o, "startedAt", "createdAt"),
     finishedAt: str(o, "finishedAt", "completedAt", "endedAt"),
+    tokens: runTokens(o),
   };
 }
 
@@ -209,6 +219,13 @@ export const RUN_OK = ["succeeded", "success", "completed", "done"];
 export const RUN_FAILED = ["failed", "error", "timed_out", "timeout"];
 
 /** Token and cost totals from a costs summary, trying the usual field names. */
+function runTokens(o: Obj): number | null {
+  const total = num(o, "totalTokens");
+  if (total !== null) return total;
+  const parts = [num(o, "inputTokens"), num(o, "cachedInputTokens"), num(o, "outputTokens")];
+  return parts.some((p) => p !== null) ? parts.reduce<number>((a, p) => a + (p ?? 0), 0) : null;
+}
+
 export function toUsage(o: unknown): { costCents: number | null; tokens: number | null } | null {
   if (!isObj(o)) return null;
   const src = isObj(o.summary) ? (o.summary as Obj) : o;
@@ -222,14 +239,19 @@ export function toUsage(o: unknown): { costCents: number | null; tokens: number 
   return { costCents, tokens };
 }
 
+/** Activity actions left out of the feed (verified against Paperclip 2026.1106: most of the log is these). */
+const NOISE = /^(tool_gateway\.|environment\.|cost\.|issue\.read_marked|issue\.disposition_|issue\.recovery_action)/;
+
 const ACTION_TEXT: [RegExp, ActivityEvent["kind"], string][] = [
   [/run.*(succeed|complet|finish)/, "finished", "finished"],
   [/run.*(fail|error|timed?_?out)/, "failed", "ran into a problem on"],
   [/run.*(start|queued|running)/, "started", "started"],
+  // files first: Paperclip 2026.1106 logs "issue.document_created", which must not read as a new task
+  [/(document|attachment|work_?product|artifact)/, "artifact", "saved a file in"],
   [/issue.*creat/, "created", "created"],
   [/comment/, "commented", "commented on"],
-  [/(document|attachment|work_?product|artifact)/, "artifact", "saved a file in"],
   [/issue.*(done|complet|closed)/, "finished", "completed"],
+  [/issue.*updat/, "other", "updated"],
 ];
 
 /** One activity-log row as a plain sentence. `names` maps agent ids to names. */
@@ -237,10 +259,12 @@ export function toActivityEvent(o: Obj, names: Record<string, string>): Activity
   const id = str(o, "id");
   if (!id) return null;
   const action = (str(o, "action", "type", "event", "kind") ?? "").toLowerCase();
+  // plumbing events (tool gateway calls, environment leases, read markers, cost reports) are not news for owners
+  if (NOISE.test(action)) return null;
   const agentId = str(o, "agentId", "actorAgentId", "actor.agentId", "details.agentId") ??
     (str(o, "actorType") === "agent" ? str(o, "actorId") : null);
   const who = (agentId && names[agentId]) || str(o, "agentName", "actor.name", "actorName") || (agentId ? "An agent" : "You");
-  const title = str(o, "details.issueTitle", "details.title", "issue.title", "entityTitle", "title", "details.name");
+  const title = str(o, "details.issueTitle", "details.title", "issue.title", "entityTitle", "title", "details.name", "details.identifier");
   const match = ACTION_TEXT.find(([re]) => re.test(action));
   const kind = match?.[1] ?? "other";
   const verb = match?.[2] ?? (action ? action.replace(/[._]/g, " ") : "did something");

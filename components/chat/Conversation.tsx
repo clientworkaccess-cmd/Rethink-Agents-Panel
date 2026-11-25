@@ -9,6 +9,9 @@ import type { Agent, Artifact, ChatSession, Comment, CreateSessionResult, RunPro
 import { ArtifactChip } from "../artifacts";
 import Critter from "../character/Critter";
 import { Button, EmptyState, Icon, InlineNotice, Loading, Markdown, Mono, SectionLabel, Unreachable, cardClass } from "../ui";
+import { speak, stopSpeaking } from "@/lib/voice-client";
+import { DictationStrip, MicButton, SpeakButton, SpeechError, useAutoRead, useDictation, useVoice } from "../voice";
+import TalkMode from "./TalkMode";
 
 const FAST_MS = 2500;
 const SLOW_MS = 15_000;
@@ -55,9 +58,15 @@ type Props = {
   replyTimeoutMs: number;
   openArtifactId: string | null;
   onOpenArtifact: (a: Artifact) => void;
-  onCreated: (session: ChatSession, fallback: boolean) => void;
+  /** `unsent`: the session exists but its first message did not post; the new view shows it with Retry. */
+  onCreated: (session: ChatSession, fallback: boolean, unsent?: { body: string; clientRequestId: string }) => void;
+  /** A first message that failed to post when this session was created (shown with Retry). */
+  initialUnsent?: { body: string; clientRequestId: string } | null;
   onFallback: (session: ChatSession) => void;
   onReplyingChange: (replying: boolean) => void;
+  /** Hands-free Talk mode is open over this session. */
+  talk?: boolean;
+  onTalkEnd?: (message?: string) => void;
 };
 
 export default function Conversation({
@@ -71,11 +80,18 @@ export default function Conversation({
   onCreated,
   onFallback,
   onReplyingChange,
+  initialUnsent = null,
+  talk = false,
+  onTalkEnd,
 }: Props) {
   const [openError, setOpenError] = useState<"unreachable" | "other" | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loaded, setLoaded] = useState(issueId === null);
-  const [local, setLocal] = useState<Local[]>([]);
+  const [local, setLocal] = useState<Local[]>(() =>
+    initialUnsent
+      ? [{ localId: initialUnsent.clientRequestId, body: initialUnsent.body, clientRequestId: initialUnsent.clientRequestId, status: "failed", createdAt: new Date().toISOString() }]
+      : [],
+  );
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   /** My last unanswered message: id and when it was sent. */
   const [waiting, setWaiting] = useState<{ id: string; body: string; since: number } | null>(null);
@@ -87,6 +103,14 @@ export default function Conversation({
   const scroller = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const lastId = useRef<string | null>(null);
+  const voice = useVoice();
+  const [autoRead] = useAutoRead();
+  /** New replies are read aloud when the setting is on, the page is visible and Talk mode is not doing it. */
+  const autoReadRef = useRef(false);
+  useEffect(() => {
+    autoReadRef.current = autoRead && voice.mode !== "off" && !talk;
+  }, [autoRead, voice.mode, talk]);
+  useEffect(() => () => stopSpeaking(), []);
   const progressRef = useRef(progress);
   useEffect(() => {
     progressRef.current = progress;
@@ -165,6 +189,9 @@ export default function Conversation({
         if (fresh.some((c) => c.authorAgentId)) {
           setWaiting(null);
           loadArtifacts(issueId);
+          const reply = fresh.filter((c) => c.authorAgentId).at(-1)!;
+          // a hidden page does not queue replies up for later
+          if (autoReadRef.current && !document.hidden) void speak(reply.body, { id: reply.id, engine: voice.engine }).catch(() => {});
         }
       }
       const p = progressRef.current;
@@ -185,7 +212,7 @@ export default function Conversation({
     } catch (e) {
       if (isUnreachable(e)) setLostConnection(true);
     }
-  }, [issueId, loaded, waiting, agentRunning, loadArtifacts, legacy, replyTimeoutMs, fallBack]);
+  }, [issueId, loaded, waiting, agentRunning, loadArtifacts, legacy, replyTimeoutMs, fallBack, voice.engine]);
   usePoll(poll, () => (busy ? FAST_MS : SLOW_MS), [issueId, loaded, busy, waiting?.id]);
 
   // 3. Send (optimistic) and retry. The first message of a new session creates it.
@@ -202,7 +229,7 @@ export default function Conversation({
             method: "POST",
             body: JSON.stringify({ body: msg.body, clientRequestId: msg.clientRequestId }),
           });
-          onCreated(r.session, r.fallback);
+          onCreated(r.session, r.fallback, r.commentFailed ? { body: msg.body, clientRequestId: msg.clientRequestId } : undefined);
           return;
         }
         const { comment } = await api<{ comment: Comment }>(`/api/issues/${encodeURIComponent(issueId)}/comments`, {
@@ -226,6 +253,27 @@ export default function Conversation({
     setDraft("");
     send(text);
   }
+
+  // Dictation: the transcript goes in at the cursor, added to the draft (never sent automatically).
+  const insertAtCursor = useCallback((text: string) => {
+    const el = box.current;
+    setDraft((cur) => {
+      const start = el && document.activeElement === el ? el.selectionStart : (el?.selectionStart ?? cur.length);
+      const end = el && document.activeElement === el ? el.selectionEnd : (el?.selectionEnd ?? cur.length);
+      const before = cur.slice(0, start);
+      const after = cur.slice(end);
+      const lead = before && !/\s$/.test(before) ? " " : "";
+      const trail = after && !/^\s/.test(after) ? " " : "";
+      const next = before + lead + text + trail + after;
+      const caret = (before + lead + text).length;
+      requestAnimationFrame(() => {
+        el?.focus();
+        el?.setSelectionRange(caret, caret);
+      });
+      return next;
+    });
+  }, []);
+  const dictation = useDictation(insertAtCursor);
 
   // auto-grow the composer
   useLayoutEffect(() => {
@@ -278,8 +326,9 @@ export default function Conversation({
 
           {comments.map((c) =>
             c.authorAgentId ? (
-              <AgentTurn key={c.id} agent={agent} meta={timeAgo(c.createdAt)}>
+              <AgentTurn key={c.id} agent={agent} meta={timeAgo(c.createdAt)} action={<SpeakButton id={c.id} text={c.body} />}>
                 <Markdown>{c.body}</Markdown>
+                <SpeechError id={c.id} />
                 {byComment.get(c.id)?.length ? (
                   <div className="flex flex-wrap gap-2">
                     {byComment.get(c.id)!.map((a) => (
@@ -328,7 +377,21 @@ export default function Conversation({
 
       <div className="mx-auto flex w-full max-w-chat flex-col gap-2 px-4 pb-4">
         {lostConnection && <InlineNotice tone="warning">Paperclip is not reachable right now. Retrying…</InlineNotice>}
-        <div className="flex items-end gap-2 rounded-xl border border-control-border bg-background-alt p-2 transition-colors duration-(--motion-duration-fast) focus-within:border-foreground">
+        {dictation.error && (
+          <InlineNotice
+            tone="warning"
+            action={
+              <Button size="sm" variant="ghost" onClick={dictation.dismissError}>
+                Dismiss
+              </Button>
+            }
+          >
+            {dictation.error}
+          </InlineNotice>
+        )}
+        <div className="flex flex-col rounded-xl border border-control-border bg-background-alt p-2 transition-colors duration-(--motion-duration-fast) focus-within:border-foreground">
+        <DictationStrip dictation={dictation} />
+        <div className="flex items-end gap-2">
           <textarea
             ref={box}
             value={draft}
@@ -345,13 +408,26 @@ export default function Conversation({
             aria-label={`Message ${agent.name}`}
             className="max-h-composer-max min-h-12 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:shadow-none focus-visible:outline-none"
           />
+          <MicButton dictation={dictation} disabled={!loaded} />
           <Button variant="primary" size="sm" onClick={submit} disabled={!draft.trim() || !loaded} aria-label="Send">
             Send
             <Icon name="send" className="size-icon-sm" />
           </Button>
         </div>
+        </div>
         <p className="text-center text-xs">Enter to send · Shift+Enter for a new line</p>
       </div>
+      {talk && loaded && voice.mode !== "off" && (
+        <TalkMode
+          agent={agent}
+          comments={comments}
+          waiting={busy}
+          progressLine={progress.lines.at(-1) ?? null}
+          replyTimeoutMs={replyTimeoutMs}
+          onSend={(text) => void send(text)}
+          onClose={(message) => onTalkEnd?.(message)}
+        />
+      )}
     </div>
   );
 }
@@ -362,12 +438,15 @@ function AgentTurn({
   meta,
   busy = false,
   live = false,
+  action,
   children,
 }: {
   agent: Agent;
   meta: string;
   busy?: boolean;
   live?: boolean;
+  /** e.g. the read-aloud button */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -376,6 +455,7 @@ function AgentTurn({
         <Critter agent={agent} size={24} head mood={busy ? "busy" : "idle"} />
         <span className="text-sm font-semibold text-foreground">{agent.name}</span>
         {busy ? <span className="text-xs">{meta}</span> : <Mono>{meta}</Mono>}
+        {action}
       </div>
       <div className="flex flex-col gap-3 pl-8">{children}</div>
     </div>
