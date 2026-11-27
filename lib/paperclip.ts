@@ -8,6 +8,7 @@ import {
   documentArtifact,
   eventLine,
   eventSeq,
+  orgParents,
   toAgent,
   toComment,
   toIssue,
@@ -27,6 +28,7 @@ import type {
   CreateSessionResult,
   Issue,
   LiveRun,
+  OrgPayload,
   RunProgress,
   SessionsPayload,
 } from "./types";
@@ -99,6 +101,22 @@ export async function getAgentsAndRuns(): Promise<AgentsPayload> {
     agents: compact<Agent>(asArray(agents, "agents").map(toAgent)),
     liveRuns: compact<LiveRun>(asArray(runs, "runs", "liveRuns").map(toLiveRun)),
   };
+}
+
+/**
+ * The org chart. Primary: Paperclip's `GET /companies/{cid}/org` tree. Fallback (older Paperclip, or an
+ * unexpected shape): each agent's `reportsTo` from the agents list. Terminated agents are filtered by the UI.
+ */
+export async function getOrg(): Promise<OrgPayload> {
+  const cid = companyId();
+  try {
+    const parents = orgParents(await call("GET", `/companies/${cid}/org`));
+    if (parents) return { parents, source: "org" };
+  } catch (err) {
+    if (err instanceof PaperclipError && err.kind === "unreachable") throw err;
+  }
+  const agents = compact<Agent>(asArray(await call("GET", `/companies/${cid}/agents`), "agents").map(toAgent));
+  return { parents: Object.fromEntries(agents.map((a) => [a.id, a.reportsTo])), source: "agents" };
 }
 
 export async function listIssues(): Promise<Issue[]> {

@@ -48,7 +48,35 @@ export function toAgent(o: Obj): Agent | null {
     role: str(o, "role", "roleKey", "title", "kind") ?? "",
     status: STATUSES.includes(raw) ? raw : "unknown",
     lastActivityAt: str(o, "lastHeartbeatAt", "lastActiveAt", "lastRunAt", "updatedAt"),
+    reportsTo: str(o, "reportsTo", "reports_to", "reportsToAgentId", "managerId"),
+    title: str(o, "title"),
   };
+}
+
+const ORG_CHILDREN = ["reports", "children", "directReports"];
+
+/**
+ * Flattens Paperclip's `/org` tree ({ id, name, role, status, reports: [...] }, recursive) into
+ * agent id -> manager id. Accepts an array of roots, a wrapper object or a single root node.
+ * Returns null when nothing usable is found, so the caller can fall back to `reportsTo`.
+ */
+export function orgParents(value: unknown): Record<string, string | null> | null {
+  const roots: Obj[] = Array.isArray(value)
+    ? value.filter(isObj)
+    : isObj(value) && str(value, "id")
+      ? [value]
+      : asArray(value, "roots", "nodes", "org", "tree", "agents");
+  const parents: Record<string, string | null> = {};
+  const walk = (node: Obj, parent: string | null, depth: number) => {
+    const id = str(node, "id", "agentId");
+    if (!id || id in parents || depth > 50) return;
+    parents[id] = parent;
+    for (const k of ORG_CHILDREN) {
+      if (Array.isArray(node[k])) for (const c of node[k] as unknown[]) if (isObj(c)) walk(c, id, depth + 1);
+    }
+  };
+  for (const r of roots) walk(r, null, 0);
+  return Object.keys(parents).length ? parents : null;
 }
 
 const FINISHED = ["succeeded", "success", "completed", "done", "failed", "error", "cancelled", "canceled", "timed_out", "timeout"];

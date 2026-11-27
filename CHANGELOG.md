@@ -1,5 +1,7 @@
 # Changelog
 
+- 2026-11-27 — Team tab (brief 04): org chart of who reports to whom. `/api/org` reads Paperclip `GET /companies/{cid}/org`, falls back to each agent's `reportsTo`. Desktop: top-down chart with the shared characters, live status, flowing connectors to working agents, hover/selected chain highlight, collapse per team, pan/zoom/fit, side panel (manager, reports, current task, Chat/Tasks). Phone: indented collapsible list. Mock agents now have reporting lines; `PAPERCLIP_MOCK_ORG_FAIL=1` tests the fallback.
+- 2026-11-27 — Brief 04 (Team tab: org chart from Paperclip `reportsTo` / `GET /companies/{cid}/org`) written in docs/briefs/04-org-chart.md.
 - 2026-11-24 — Fix: chat page crashed for the CRO (and any agent with a briefcase/clipboard/calculator prop): example questions were missing for the props added in brief 03. EXAMPLES now typed Record<Prop> with a fallback.
 - 2026-11-24 — CRO character: fixed look (light skin, brown side-parted hair, clean-shaven) instead of the random draw.
 - 2026-11-24 — Deployed on the VPS: service `agents-panel` on 127.0.0.1:3400, served at https://unithub.gammaincome.com/agents via the unithub nginx site.

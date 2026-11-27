@@ -250,6 +250,9 @@
   --spacing-col-person: 160px; /* assignee column */
   --spacing-spark: 96px;
   --spacing-chip: 240px; /* artifact chip */
+  --spacing-org-node: 208px; /* Team tab: org-chart card width (components/team/layout.ts NODE_W must match) */
+  --spacing-org-node-h: 112px; /* Team tab: org-chart card height (layout.ts NODE_H must match) */
+  --spacing-org-indent: 20px; /* Team tab: indent per level in the mobile tree list */
 
   --container-chat: 760px;
   --container-page: 1200px;
@@ -539,6 +542,21 @@ body {
     transform: rotate(-40deg);
   }
 }
+@keyframes org-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+@keyframes org-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 .page-enter {
   animation: page-enter var(--motion-page-enter) var(--motion-ease-standard) both;
@@ -587,6 +605,20 @@ body {
   animation: critter-wave 0.5s ease-in-out infinite;
 }
 
+/* Team tab: cards enter level by level; connectors to a working agent flow (delegation in progress). */
+.org-enter {
+  animation: org-enter var(--motion-duration-slow) var(--motion-ease-emphasized) both;
+}
+.org-canvas {
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+  touch-action: none;
+}
+.org-flow {
+  stroke-dasharray: 4 4;
+  animation: org-flow 0.8s linear infinite;
+}
+
 /* Reduced motion: no transitions; critters keep only their blink; shimmer becomes solid text. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -604,6 +636,8 @@ body {
   .critter-busy,
   .critter-wave,
   .rec-dot,
+  .org-enter,
+  .org-flow,
   .dots span {
     animation: none !important;
   }

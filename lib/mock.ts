@@ -7,16 +7,22 @@
 //
 // PAPERCLIP_MOCK_AGENTS=N sets the team size (default 4) to test how the Office scales: fewer than 4 keeps the
 // first N agents; more adds extra mock agents (CFO, CTO, COO, ...) with their own repeating run schedules.
+//
+// Org chart: every mock agent has a `reportsTo` (the CRO is the root). PAPERCLIP_MOCK_ORG_FAIL=1 makes
+// `/companies/{cid}/org` return 404, so the panel's `reportsTo` fallback can be tested.
 
 type Obj = Record<string, unknown>;
 
 const CID = "mock-company";
-const BASE_AGENTS = [
-  { id: "agt-cro", name: "CRO", role: "cro", adapterType: "claude_local" },
-  { id: "agt-analyst", name: "Pricing Analyst", role: "analyst", adapterType: "claude_local" },
-  { id: "agt-ops", name: "Ops Assistant", role: "general", adapterType: "claude_local" },
-  { id: "agt-cmo", name: "Marketing Lead", role: "cmo", adapterType: "claude_local" },
+type MockAgent = { id: string; name: string; role: string; adapterType: string; reportsTo: string | null; title?: string };
+const BASE_AGENTS: MockAgent[] = [
+  { id: "agt-cro", name: "CRO", role: "cro", adapterType: "claude_local", reportsTo: null, title: "Chief Revenue Officer" },
+  { id: "agt-analyst", name: "Pricing Analyst", role: "analyst", adapterType: "claude_local", reportsTo: "agt-cro" },
+  { id: "agt-ops", name: "Ops Assistant", role: "general", adapterType: "claude_local", reportsTo: "agt-cmo" },
+  { id: "agt-cmo", name: "Marketing Lead", role: "cmo", adapterType: "claude_local", reportsTo: "agt-cro" },
 ];
+/** Managers the extra mock agents report to, in turn (first three extras report to the CRO). */
+const MOCK_MANAGERS = ["agt-cmo", "agt-x1", "agt-analyst", "agt-x2", "agt-x3"];
 const EXTRA_AGENTS: [string, string][] = [
   ["CFO", "cfo"],
   ["CTO", "cto"],
@@ -37,8 +43,19 @@ function mockTeam() {
   for (let i = 0; team.length < n; i++) {
     const [name, role] = EXTRA_AGENTS[i % EXTRA_AGENTS.length];
     const round = Math.floor(i / EXTRA_AGENTS.length);
-    team.push({ id: `agt-x${i + 1}`, name: round ? `${name} ${round + 1}` : name, role, adapterType: "claude_local" });
+    team.push({ id: `agt-x${i + 1}`, name: round ? `${name} ${round + 1}` : name, role, adapterType: "claude_local", reportsTo: null });
   }
+  const ids = new Set(team.map((a) => a.id));
+  team.forEach((a, i) => {
+    if (i < BASE_AGENTS.length) {
+      if (a.reportsTo && !ids.has(a.reportsTo)) a.reportsTo = "agt-cro";
+      if (a.id === "agt-cro") a.reportsTo = null;
+      return;
+    }
+    const x = i - BASE_AGENTS.length;
+    const pool = MOCK_MANAGERS.filter((m) => ids.has(m) && m !== a.id);
+    a.reportsTo = x < 3 ? "agt-cro" : pool[x % pool.length] ?? "agt-cro";
+  });
   return team;
 }
 const AGENTS = mockTeam();
@@ -365,6 +382,15 @@ export async function mockRequest(method: string, fullPath: string, body?: unkno
 
   if (method === "GET" && m(/^\/companies\/[^/]+\/agents$/)) return schedule(s).agents;
   if (method === "GET" && m(/^\/companies\/[^/]+\/live-runs$/)) return schedule(s).runs;
+  if (method === "GET" && m(/^\/companies\/[^/]+\/org$/)) {
+    if (process.env.PAPERCLIP_MOCK_ORG_FAIL === "1") throw new Error("mock-404");
+    const agents = schedule(s).agents;
+    const node = (a: Obj): Obj => ({
+      id: a.id, name: a.name, role: a.role, status: a.status,
+      reports: agents.filter((c) => c.reportsTo === a.id).map(node),
+    });
+    return agents.filter((a) => !a.reportsTo).map(node);
+  }
   if (method === "GET" && m(/^\/companies\/[^/]+\/issues$/)) {
     const assignee = q.get("assigneeAgentId");
     return s.issues.filter((i) => !assignee || i.assigneeAgentId === assignee);

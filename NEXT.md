@@ -1,8 +1,9 @@
 # Next — current status
 
-_Last updated: 2026-11-24_
+_Last updated: 2026-11-27_
 
 ## Status
+- **Team tab** (brief 04, org chart) pushed straight to `main` on Alyan's request (2026-11-27). Checked in mock mode: desktop dark + light, phone list, side panel, collapse, `/org` fallback. **To do on the VPS:** pull, build, restart `agents-panel`, then confirm the real `/org` and `/agents` shapes (`curl -s http://127.0.0.1:3100/api/companies/<cid>/org | head -c 2000`) and that every agent sits under its real manager. If `reportsTo` is not set in Paperclip, everyone shows as a top-level agent: set each agent's manager in Paperclip.
 - Panel V1, V2, the design refresh and brief 03 (chibi characters, front-facing Office) are merged into `main`.
 - **Office polish** on `feat/office-polish`: PR open into `main`, not merged. It implements the decisions on the three PR #4 questions:
   - **Camera:** opens at max(fit, 0.85). When that floor applies, the room opens centred and top-aligned, the wheel pans, ctrl+wheel and pinch zoom, and panning is clamped. Zooming out still reaches the whole-room fit; "Reset view" returns to the opening view. Clicking "N waiting for you" pans to that agent's desk (each click goes to the next one).

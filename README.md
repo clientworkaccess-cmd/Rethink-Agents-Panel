@@ -32,6 +32,7 @@ cp .env.example .env   # then fill in the values below
 | `PANEL_CHAT_WAKEUP` | Optional. `create` (default): wake the agent once when a chat session is created. `every`: also after each message. `off`: never |
 | `PANEL_SESSION_REPLY_TIMEOUT_MS` | Optional. How long a new session waits for a first reply (with no live run) before the chat falls back to the agent's single `/chats` conversation. Default 180000 |
 | `VOICE_URL` | Optional. The voice service (speech-to-text and text-to-speech), e.g. `http://127.0.0.1:8090` on the VPS. Empty = no voice controls at all (except in mock mode, below). `mock` = mock voice |
+| `PAPERCLIP_MOCK_ORG_FAIL` | Mock only. `1`: Paperclip's `/org` returns 404, so the Team tab builds the tree from each agent's `reportsTo` |
 | `PAPERCLIP_MOCK_SESSIONS_FAIL` | Mock only. `1`/`create`: creating a session fails. `noreply`: sessions never get a reply. Both exercise the fallback |
 
 Never commit `.env`.
@@ -79,7 +80,7 @@ The acknowledgement rules, the progress phrase whitelist and the narration rates
 ## Layout
 
 ```
-app/                    pages (login, office, dashboard, chat) and the /api routes
+app/                    pages (login, office, team, dashboard, chat) and the /api routes (/api/org = who reports to whom)
 proxy.ts                login guard for every page and /api route
 lib/paperclip.ts        the only module that calls Paperclip (chat-session calls are in one block)
 lib/normalize.ts        defensive mapping of Paperclip JSON
@@ -95,6 +96,7 @@ lib/voice-client.ts     browser voice primitives: record, listen (VAD), transcri
 lib/voice.ts            server side of voice (VOICE_URL, the two service calls); lib/speech-text.ts strips Markdown
 services/voice/         the voice service (FastAPI, Parakeet via sherpa-onnx, Piper) as deployed on the VPS
 components/dashboard/   dashboard, plain-SVG charts, task panel
+components/team/        Team tab: org chart (layout.ts tidy tree, OrgChart.tsx pan/zoom chart + phone list, AgentPanel.tsx)
 ```
 
 - To add a role's work route in the Office, add an entry to `components/office/roles.ts`.

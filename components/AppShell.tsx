@@ -13,6 +13,7 @@ import { VoiceProvider } from "./voice";
 
 const TABS: { href: string; label: string; icon: IconName }[] = [
   { href: "/office", label: "Office", icon: "office" },
+  { href: "/team", label: "Team", icon: "team" },
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/chat", label: "Chat", icon: "chat" },
 ];

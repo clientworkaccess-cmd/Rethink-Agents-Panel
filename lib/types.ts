@@ -17,6 +17,10 @@ export type Agent = {
   role: string;
   status: AgentStatus;
   lastActivityAt: string | null;
+  /** Paperclip `reportsTo`: the manager's agent id, null at the top of the org chart. */
+  reportsTo: string | null;
+  /** Optional display title set in Paperclip. */
+  title: string | null;
 };
 
 export type LiveRun = {
@@ -77,6 +81,12 @@ export type Artifact = {
 };
 
 export type AgentsPayload = { agents: Agent[]; liveRuns: LiveRun[] };
+
+/**
+ * Who reports to whom: agent id -> manager id (null = top of the tree).
+ * `source` says where it came from: Paperclip's ready-made `/org` tree, or each agent's `reportsTo` (fallback).
+ */
+export type OrgPayload = { parents: Record<string, string | null>; source: "org" | "agents" };
 
 /** One chat conversation with an agent. `legacy` = Paperclip's single `/chats` issue for that agent. */
 export type ChatSession = {
